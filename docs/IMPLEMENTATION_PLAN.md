@@ -1,0 +1,1099 @@
+# Implementation Plan
+
+6-week roadmap (3 hours/day part-time) or 3-4 weeks full-time. Each phase ends with a demoable milestone.
+
+## Phase 0: Foundation (Days 1-2)
+
+**Goal:** Monorepo scaffolding with TypeScript strict mode, shared types, and basic dev workflow.
+
+### Tasks
+
+1. **Initialize monorepo**
+   ```bash
+   mkdir orbit-ctrl && cd orbit-ctrl
+   pnpm init
+   mkdir -p apps/{web,api} packages/{types,tools,mcp-server}
+   ```
+
+2. **Configure workspace**
+   - Create `pnpm-workspace.yaml`:
+     ```yaml
+     packages:
+       - 'apps/*'
+       - 'packages/*'
+     ```
+   - Root `package.json` with scripts:
+     ```json
+     {
+       "scripts": {
+         "dev": "pnpm --parallel --filter './apps/*' dev",
+         "build": "pnpm --filter './packages/*' build && pnpm --filter './apps/*' build",
+         "test": "pnpm --recursive test"
+       }
+     }
+     ```
+
+3. **Setup TypeScript**
+   - Root `tsconfig.json` with strict settings:
+     ```json
+     {
+       "compilerOptions": {
+         "strict": true,
+         "esModuleInterop": true,
+         "skipLibCheck": true,
+         "moduleResolution": "bundler"
+       }
+     }
+     ```
+   - Extend in each package
+
+4. **Create shared types package**
+   - `packages/types/src/index.ts`:
+     ```typescript
+     export interface Satellite {
+       noradId: number;
+       name: string;
+       tle: { line1: string; line2: string };
+     }
+     
+     export interface Position {
+       lat: number;
+       lon: number;
+       alt: number; // km
+       velocity: number; // km/s
+       timestamp: Date;
+     }
+     
+     export interface Telemetry {
+       satelliteId: number;
+       voltage: number; // V
+       temperature: number; // °C
+       attitude: { pitch: number; roll: number; yaw: number }; // degrees
+       timestamp: Date;
+     }
+     
+     export interface Anomaly {
+       id: string;
+       satelliteId: number;
+       metric: 'voltage' | 'temperature' | 'attitude';
+       severity: 'warn' | 'alert';
+       zscore: number;
+       timestamp: Date;
+       description: string;
+     }
+     ```
+
+5. **Setup Vite for frontend**
+   - `apps/web`: Vite + React + TypeScript template
+   - Install: react, react-dom, typescript, vite
+   - Basic `App.tsx` with "Hello orbit.ctrl"
+
+6. **Setup Fastify for backend**
+   - `apps/api`: Node + TypeScript + Fastify
+   - Install: fastify, @fastify/websocket, @fastify/cors
+   - Basic server listening on :3001
+
+7. **Add ESLint + Prettier**
+   - Shared config in root
+   - Pre-commit hooks with husky + lint-staged
+
+### Deliverable
+
+- `pnpm dev` starts both frontend (localhost:5173) and backend (localhost:3001)
+- TypeScript compiles without errors
+- Shared types imported correctly across packages
+- Git repo initialized with proper .gitignore
+
+**Time:** 6-8 hours
+
+---
+
+## Phase 1: Globe + TLE Data (Week 1)
+
+**Goal:** 3D globe displaying 5-10 satellites in real-time orbital motion.
+
+### Tasks
+
+1. **TLE Service (backend)**
+   - Create `packages/tools/src/tle-service.ts`
+   - Fetch from Celestrak:
+     ```typescript
+     const response = await fetch(
+       'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json'
+     );
+     const satellites = await response.json();
+     ```
+   - Parse into `Satellite` type
+   - Cache to `data/tle-cache.json` (refresh every 24h)
+   - Use `satellite.js` for orbit propagation:
+     ```typescript
+     import * as satellite from 'satellite.js';
+     
+     function getSatellitePosition(sat: Satellite, time: Date): Position {
+       const satrec = satellite.twoline2satrec(sat.tle.line1, sat.tle.line2);
+       const positionAndVelocity = satellite.propagate(satrec, time);
+       const gmst = satellite.gstime(time);
+       const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+       
+       return {
+         lat: satellite.degreesLat(positionGd.latitude),
+         lon: satellite.degreesLong(positionGd.longitude),
+         alt: positionGd.height,
+         velocity: // calculate from velocity vector
+         timestamp: time
+       };
+     }
+     ```
+
+2. **REST endpoint for positions**
+   - `apps/api/src/routes/satellites.ts`:
+     ```typescript
+     fastify.get('/satellites', async () => {
+       return tleService.getSatellites();
+     });
+     
+     fastify.get('/satellites/:id/position', async (req) => {
+       const time = req.query.time ? new Date(req.query.time) : new Date();
+       return orbitService.getPosition(req.params.id, time);
+     });
+     ```
+
+3. **Globe visualization (frontend)**
+   - Install `globe.gl` and `three`
+   - Create `components/Globe.tsx`:
+     ```typescript
+     import Globe from 'react-globe.gl';
+     
+     export function GlobeView({ satellites }: { satellites: SatellitePosition[] }) {
+       return (
+         <Globe
+           globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+           objectsData={satellites}
+           objectLat={d => d.lat}
+           objectLng={d => d.lon}
+           objectAltitude={d => d.alt / 6371} // normalize to Earth radii
+           objectLabel={d => d.name}
+         />
+       );
+     }
+     ```
+
+4. **Real-time updates**
+   - Frontend: fetch positions every 1s
+     ```typescript
+     useEffect(() => {
+       const interval = setInterval(async () => {
+         const positions = await Promise.all(
+           satellites.map(s => fetch(`/api/satellites/${s.id}/position`).then(r => r.json()))
+         );
+         setSatellitePositions(positions);
+       }, 1000);
+       return () => clearInterval(interval);
+     }, [satellites]);
+     ```
+
+5. **Ground tracks**
+   - Calculate future positions for next 90 minutes
+   - Draw as lines on globe:
+     ```typescript
+     <Globe
+       pathsData={groundTracks}
+       pathPoints={d => d.positions}
+       pathPointLat={p => p.lat}
+       pathPointLng={p => p.lon}
+       pathColor={() => 'rgba(255, 107, 53, 0.4)'}
+       pathStroke={2}
+     />
+     ```
+
+### Deliverable
+
+- 3D Earth globe with realistic texture
+- ISS, Hubble, and 3 Starlink satellites moving in correct orbits
+- Ground tracks showing path over Earth
+- Click satellite to see name/altitude
+- Console logs show TLE data being fetched and cached
+
+**Time:** 12-16 hours
+
+---
+
+## Phase 2: Space Weather + Pass Prediction (Week 2)
+
+**Goal:** Integrate space weather overlays and predict satellite passes for user location.
+
+### Tasks
+
+1. **Space Weather Service (backend)**
+   - `packages/tools/src/weather-service.ts`
+   - Fetch from NOAA SWPC:
+     ```typescript
+     async function getCurrentKpIndex(): Promise<number> {
+       const res = await fetch(
+         'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json'
+       );
+       const data = await res.json();
+       return parseFloat(data[data.length - 1][1]); // latest Kp
+     }
+     ```
+   - Poll every 15 minutes, cache in-memory
+   - Endpoints:
+     ```typescript
+     fastify.get('/space-weather', async () => ({
+       kpIndex: await weatherService.getCurrentKpIndex(),
+       solarWind: await weatherService.getSolarWind(),
+       xrayFlux: await weatherService.getXRayFlux(),
+       summary: weatherService.getSummary() // "quiet" / "active" / "storm"
+     }));
+     ```
+
+2. **Pass prediction (backend)**
+   - Add to orbit service:
+     ```typescript
+     function predictPasses(
+       satellite: Satellite,
+       observerLat: number,
+       observerLon: number,
+       hours: number
+     ): Pass[] {
+       const passes: Pass[] = [];
+       const now = new Date();
+       const end = new Date(now.getTime() + hours * 3600 * 1000);
+       
+       for (let t = now; t < end; t = new Date(t.getTime() + 60 * 1000)) {
+         const pos = getPosition(satellite, t);
+         const { elevation, azimuth } = calculateTopocentric(pos, observerLat, observerLon);
+         
+         if (elevation > 0) {
+           // Track this pass
+         }
+       }
+       
+       return passes;
+     }
+     ```
+   - Endpoint:
+     ```typescript
+     fastify.get('/satellites/:id/passes', async (req) => {
+       return orbitService.predictPasses(
+         req.params.id,
+         parseFloat(req.query.lat),
+         parseFloat(req.query.lon),
+         parseInt(req.query.hours)
+       );
+     });
+     ```
+
+3. **Space weather overlay (frontend)**
+   - Add Kp index display in header
+   - Visualize on globe:
+     ```typescript
+     const kpIndex = useSpaceWeather();
+     const auroraBeltColor = kpIndex > 5 ? 'red' : kpIndex > 3 ? 'yellow' : 'green';
+     
+     <Globe
+       hexBinPointsData={kpIndex > 3 ? auroral_zone_points : []}
+       hexBinColor={() => auroraBeltColor}
+     />
+     ```
+
+4. **User location + pass list (frontend)**
+   - Get user location (geolocation API or manual input)
+   - Display upcoming passes:
+     ```typescript
+     const [location, setLocation] = useState({ lat: 35.68, lon: 139.69 }); // Tokyo default
+     const passes = usePasses(selectedSatellite, location, 2); // next 2 hours
+     
+     return (
+       <div>
+         <h3>Upcoming passes over your location</h3>
+         {passes.map(p => (
+           <div key={p.startTime}>
+             {formatTime(p.startTime)} — max elevation {p.maxElevation}°
+           </div>
+         ))}
+       </div>
+     );
+     ```
+
+5. **Selected satellite detail panel**
+   - Right rail showing:
+     - Name + NORAD ID
+     - Current altitude + velocity
+     - Next pass time + max elevation
+     - Orbital period
+
+### Deliverable
+
+- Space weather status displayed in header (Kp index + summary)
+- Globe shows auroral zones when geomagnetic storm active
+- User location marked on globe
+- Clicking satellite shows detail panel with next pass time
+- "Passes in next 2 hours" list populated correctly
+
+**Time:** 10-14 hours
+
+---
+
+## Phase 3: Telemetry Simulation + Anomaly Detection (Week 3)
+
+**Goal:** Realistic telemetry streams with anomaly detection and alert UI.
+
+### Tasks
+
+1. **Telemetry Simulator (backend)**
+   - `packages/tools/src/telemetry-simulator.ts`:
+     ```typescript
+     class TelemetrySimulator {
+       generateTelemetry(satellite: Satellite, time: Date): Telemetry {
+         const position = orbitService.getPosition(satellite, time);
+         const inEclipse = this.isInEclipse(position, time);
+         
+         // Bus voltage: 24-32V nominal, drops in eclipse
+         const voltage = inEclipse 
+           ? 24 + Math.random() * 4 
+           : 28 + Math.random() * 4;
+         
+         // Temperature: thermal cycling with orbit
+         const orbitalPhase = this.getOrbitalPhase(satellite, time);
+         const baseTempC = -20 + 40 * Math.sin(orbitalPhase);
+         const temperature = baseTempC + (Math.random() - 0.5) * 5;
+         
+         // Attitude: small random walk
+         const attitude = {
+           pitch: (Math.random() - 0.5) * 0.2,
+           roll: (Math.random() - 0.5) * 0.2,
+           yaw: (Math.random() - 0.5) * 0.2
+         };
+         
+         // Occasionally inject anomaly
+         if (Math.random() < 0.02) {
+           return this.injectAnomaly({ voltage, temperature, attitude }, time);
+         }
+         
+         return { satelliteId: satellite.noradId, voltage, temperature, attitude, timestamp: time };
+       }
+       
+       private injectAnomaly(telemetry: Telemetry, time: Date): Telemetry {
+         // Slow temperature drift
+         const anomalyType = Math.random();
+         if (anomalyType < 0.5) {
+           telemetry.temperature += 15; // sudden increase
+         } else {
+           telemetry.voltage -= 5; // voltage drop
+         }
+         return telemetry;
+       }
+     }
+     ```
+
+2. **WebSocket telemetry stream**
+   - `apps/api/src/websocket.ts`:
+     ```typescript
+     fastify.register(websocket);
+     
+     fastify.get('/telemetry', { websocket: true }, (socket) => {
+       const interval = setInterval(() => {
+         const telemetry = satellites.map(s => 
+           telemetrySimulator.generateTelemetry(s, new Date())
+         );
+         socket.send(JSON.stringify({ type: 'telemetry', data: telemetry }));
+       }, 1000);
+       
+       socket.on('close', () => clearInterval(interval));
+     });
+     ```
+
+3. **Anomaly Detection Engine (backend)**
+   - `packages/tools/src/anomaly-engine.ts`:
+     ```typescript
+     class AnomalyEngine {
+       private history: Map<number, Telemetry[]> = new Map();
+       
+       detectAnomalies(telemetry: Telemetry): Anomaly[] {
+         const satelliteHistory = this.history.get(telemetry.satelliteId) || [];
+         satelliteHistory.push(telemetry);
+         
+         // Keep last 60 samples (1 minute at 1Hz)
+         if (satelliteHistory.length > 60) satelliteHistory.shift();
+         this.history.set(telemetry.satelliteId, satelliteHistory);
+         
+         if (satelliteHistory.length < 10) return []; // need history
+         
+         const anomalies: Anomaly[] = [];
+         
+         // Check temperature
+         const temps = satelliteHistory.map(t => t.temperature);
+         const tempMean = temps.reduce((a, b) => a + b) / temps.length;
+         const tempStd = Math.sqrt(temps.reduce((a, b) => a + Math.pow(b - tempMean, 2), 0) / temps.length);
+         const tempZScore = (telemetry.temperature - tempMean) / tempStd;
+         
+         if (Math.abs(tempZScore) > 3) {
+           anomalies.push({
+             id: crypto.randomUUID(),
+             satelliteId: telemetry.satelliteId,
+             metric: 'temperature',
+             severity: 'alert',
+             zscore: tempZScore,
+             timestamp: telemetry.timestamp,
+             description: `Temperature ${tempZScore > 0 ? 'spike' : 'drop'} detected`
+           });
+         } else if (Math.abs(tempZScore) > 2) {
+           anomalies.push({
+             id: crypto.randomUUID(),
+             satelliteId: telemetry.satelliteId,
+             metric: 'temperature',
+             severity: 'warn',
+             zscore: tempZScore,
+             timestamp: telemetry.timestamp,
+             description: 'Temperature drift detected'
+           });
+         }
+         
+         // Similar checks for voltage and attitude...
+         
+         return anomalies;
+       }
+     }
+     ```
+
+4. **WebSocket alert stream**
+   - Add to websocket handler:
+     ```typescript
+     fastify.get('/alerts', { websocket: true }, (socket) => {
+       anomalyEngine.on('anomaly', (anomaly: Anomaly) => {
+         socket.send(JSON.stringify({ type: 'alert', data: anomaly }));
+       });
+     });
+     ```
+
+5. **Telemetry dashboard (frontend)**
+   - Create `components/TelemetryStrip.tsx`:
+     ```typescript
+     export function TelemetryStrip({ telemetry }: { telemetry: Telemetry }) {
+       return (
+         <div className="telemetry-strip">
+           <MetricCard
+             label="Bus voltage"
+             value={telemetry.voltage.toFixed(2)}
+             unit="V"
+             sparkline={voltageHistory}
+             status={telemetry.voltage < 26 ? 'warn' : 'nominal'}
+           />
+           <MetricCard
+             label="Internal temp"
+             value={telemetry.temperature.toFixed(1)}
+             unit="°C"
+             sparkline={tempHistory}
+             status={Math.abs(telemetry.temperature) > 40 ? 'warn' : 'nominal'}
+           />
+           <MetricCard
+             label="Attitude yaw"
+             value={telemetry.attitude.yaw.toFixed(2)}
+             unit="°"
+             sparkline={yawHistory}
+           />
+         </div>
+       );
+     }
+     ```
+   - Sparklines with Recharts:
+     ```typescript
+     <LineChart width={100} height={40} data={sparkline}>
+       <Line type="monotone" dataKey="value" stroke="#3B6D11" strokeWidth={1} dot={false} />
+     </LineChart>
+     ```
+
+6. **Alert log (frontend)**
+   - Subscribe to WebSocket `/alerts`
+   - Display in bottom panel:
+     ```typescript
+     const [alerts, setAlerts] = useState<Anomaly[]>([]);
+     
+     useEffect(() => {
+       const ws = new WebSocket('ws://localhost:3001/alerts');
+       ws.onmessage = (event) => {
+         const { type, data } = JSON.parse(event.data);
+         if (type === 'alert') {
+           setAlerts(prev => [data, ...prev].slice(0, 10)); // keep latest 10
+         }
+       };
+     }, []);
+     
+     return (
+       <div className="alert-log">
+         {alerts.map(a => (
+           <div key={a.id} className={`alert alert-${a.severity}`}>
+             <Icon name="alert-triangle" />
+             <span>{formatTime(a.timestamp)}</span>
+             <span>{satelliteName(a.satelliteId)} — {a.description}</span>
+             <span className="zscore">Z = {a.zscore.toFixed(1)}</span>
+           </div>
+         ))}
+       </div>
+     );
+     ```
+
+### Deliverable
+
+- Real-time telemetry streaming from backend to frontend at 1Hz
+- Telemetry strip showing voltage, temperature, attitude with sparklines
+- Telemetry values change realistically (eclipse cycles, thermal variations)
+- Anomalies detected automatically (Z-score threshold)
+- Alerts appear in bottom log with severity color-coding
+- Visual confirmation: inject manual anomaly, see alert appear within 3 seconds
+
+**Time:** 14-18 hours
+
+---
+
+## Phase 4: AI Agent Layer (Week 4)
+
+**Goal:** Natural language query interface with multi-hop reasoning and visible tool calls.
+
+### Tasks
+
+1. **Tool Registry (backend)**
+   - `packages/tools/src/tool-registry.ts`:
+     ```typescript
+     interface Tool {
+       name: string;
+       description: string;
+       inputSchema: {
+         type: 'object';
+         properties: Record<string, any>;
+         required: string[];
+       };
+       execute: (params: any) => Promise<any>;
+     }
+     
+     export const toolRegistry: Tool[] = [
+       {
+         name: 'get_satellite_position',
+         description: 'Get current or historical position of a satellite',
+         inputSchema: {
+           type: 'object',
+           properties: {
+             name: { type: 'string', description: 'Satellite name (e.g., "ISS", "Hubble")' },
+             time: { type: 'string', description: 'ISO8601 timestamp (optional, defaults to now)' }
+           },
+           required: ['name']
+         },
+         execute: async ({ name, time }) => {
+           const satellite = await tleService.getSatelliteByName(name);
+           return orbitService.getPosition(satellite, time ? new Date(time) : new Date());
+         }
+       },
+       {
+         name: 'predict_passes',
+         description: 'Predict when a satellite will be visible from a location',
+         inputSchema: {
+           type: 'object',
+           properties: {
+             satellite: { type: 'string' },
+             lat: { type: 'number' },
+             lon: { type: 'number' },
+             hours: { type: 'number', description: 'How many hours to look ahead' }
+           },
+           required: ['satellite', 'lat', 'lon', 'hours']
+         },
+         execute: async ({ satellite, lat, lon, hours }) => {
+           const sat = await tleService.getSatelliteByName(satellite);
+           return orbitService.predictPasses(sat, lat, lon, hours);
+         }
+       },
+       // ... other tools: get_space_weather, get_satellite_telemetry, get_anomalies, find_satellites_above
+     ];
+     ```
+
+2. **AI Agent Service (backend)**
+   - Install `@anthropic-ai/sdk`
+   - `packages/tools/src/agent-service.ts`:
+     ```typescript
+     import Anthropic from '@anthropic-ai/sdk';
+     
+     export class AgentService {
+       private anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+       
+       async chat(message: string): Promise<AsyncIterable<string>> {
+         const stream = await this.anthropic.messages.create({
+           model: 'claude-sonnet-4-20250514',
+           max_tokens: 2000,
+           messages: [{ role: 'user', content: message }],
+           tools: toolRegistry.map(t => ({
+             name: t.name,
+             description: t.description,
+             input_schema: t.inputSchema
+           })),
+           stream: true
+         });
+         
+         return this.processStream(stream);
+       }
+       
+       private async *processStream(stream: any): AsyncIterable<string> {
+         for await (const event of stream) {
+           if (event.type === 'content_block_delta') {
+             yield event.delta.text || '';
+           } else if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
+             yield `\n→ Calling ${event.content_block.name}...\n`;
+           }
+         }
+       }
+     }
+     ```
+
+3. **Agent endpoint (backend)**
+   - `apps/api/src/routes/agent.ts`:
+     ```typescript
+     fastify.post('/agent/chat', async (req, reply) => {
+       const { message } = req.body;
+       
+       reply.raw.writeHead(200, {
+         'Content-Type': 'text/event-stream',
+         'Cache-Control': 'no-cache',
+         'Connection': 'keep-alive'
+       });
+       
+       for await (const chunk of agentService.chat(message)) {
+         reply.raw.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+       }
+       
+       reply.raw.end();
+     });
+     ```
+
+4. **Agent Chat UI (frontend)**
+   - `components/AgentChatPanel.tsx`:
+     ```typescript
+     export function AgentChatPanel() {
+       const [messages, setMessages] = useState<Message[]>([]);
+       const [input, setInput] = useState('');
+       const [streaming, setStreaming] = useState(false);
+       
+       const sendMessage = async () => {
+         const userMessage = { role: 'user', content: input };
+         setMessages(prev => [...prev, userMessage]);
+         setInput('');
+         setStreaming(true);
+         
+         const response = await fetch('/api/agent/chat', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ message: input })
+         });
+         
+         const reader = response.body.getReader();
+         const decoder = new TextDecoder();
+         let assistantMessage = { role: 'assistant', content: '' };
+         setMessages(prev => [...prev, assistantMessage]);
+         
+         while (true) {
+           const { done, value } = await reader.read();
+           if (done) break;
+           
+           const text = decoder.decode(value);
+           const lines = text.split('\n\n');
+           
+           for (const line of lines) {
+             if (line.startsWith('data: ')) {
+               const { chunk } = JSON.parse(line.slice(6));
+               assistantMessage.content += chunk;
+               setMessages(prev => [...prev.slice(0, -1), { ...assistantMessage }]);
+             }
+           }
+         }
+         
+         setStreaming(false);
+       };
+       
+       return (
+         <div className="agent-chat">
+           <div className="messages">
+             {messages.map((m, i) => (
+               <div key={i} className={`message message-${m.role}`}>
+                 <ReactMarkdown>{m.content}</ReactMarkdown>
+               </div>
+             ))}
+           </div>
+           <input
+             value={input}
+             onChange={e => setInput(e.target.value)}
+             onKeyDown={e => e.key === 'Enter' && sendMessage()}
+             placeholder="Ask about satellites, space weather, anomalies..."
+             disabled={streaming}
+           />
+         </div>
+       );
+     }
+     ```
+
+5. **Multi-hop query examples**
+   Test these queries to verify tool chaining:
+   - "Which satellites over Tokyo in next 2 hours have active anomalies?"
+     - Should call `predict_passes` → `get_anomalies` → synthesize
+   - "What's the current space weather and how might it affect satellites?"
+     - Should call `get_space_weather` → explain implications
+   - "Show me ISS position and predict its next pass over San Francisco"
+     - Should call `get_satellite_position` → `predict_passes`
+
+### Deliverable
+
+- Agent chat panel in right sidebar
+- User can type natural language queries
+- Agent response streams in real-time
+- Tool calls visible as "→ Calling predict_passes..." during reasoning
+- Complex multi-hop queries work correctly (verified with test cases above)
+- Error handling: graceful degradation if API key missing or rate limited
+
+**Time:** 14-18 hours
+
+---
+
+## Phase 5: MCP Server (Week 5)
+
+**Goal:** MCP server exposing same tools to external AI clients (Claude Desktop, Cursor).
+
+### Tasks
+
+1. **MCP Server package**
+   - `packages/mcp-server/package.json`:
+     ```json
+     {
+       "name": "@orbit-ctrl/mcp-server",
+       "type": "module",
+       "main": "dist/index.js",
+       "bin": {
+         "orbit-ctrl-mcp": "./dist/index.js"
+       },
+       "dependencies": {
+         "@modelcontextprotocol/sdk": "latest",
+         "@orbit-ctrl/types": "workspace:*",
+         "@orbit-ctrl/tools": "workspace:*"
+       }
+     }
+     ```
+
+2. **MCP server implementation**
+   - `packages/mcp-server/src/index.ts`:
+     ```typescript
+     #!/usr/bin/env node
+     import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+     import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+     import { toolRegistry } from '@orbit-ctrl/tools';
+     
+     const server = new Server(
+       { name: 'orbit-ctrl', version: '0.1.0' },
+       { capabilities: { tools: {} } }
+     );
+     
+     server.setRequestHandler('tools/list', async () => ({
+       tools: toolRegistry.map(t => ({
+         name: t.name,
+         description: t.description,
+         inputSchema: t.inputSchema
+       }))
+     }));
+     
+     server.setRequestHandler('tools/call', async (request) => {
+       const tool = toolRegistry.find(t => t.name === request.params.name);
+       if (!tool) throw new Error(`Unknown tool: ${request.params.name}`);
+       
+       const result = await tool.execute(request.params.arguments);
+       return {
+         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+       };
+     });
+     
+     const transport = new StdioServerTransport();
+     await server.connect(transport);
+     ```
+
+3. **Build and publish**
+   - Add build script to `packages/mcp-server/package.json`:
+     ```json
+     {
+       "scripts": {
+         "build": "tsc",
+         "prepublishOnly": "pnpm build"
+       }
+     }
+     ```
+   - Build: `pnpm --filter @orbit-ctrl/mcp-server build`
+   - Link globally: `pnpm --filter @orbit-ctrl/mcp-server link --global`
+
+4. **Claude Desktop configuration**
+   - Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+     ```json
+     {
+       "mcpServers": {
+         "orbit-ctrl": {
+           "command": "orbit-ctrl-mcp",
+           "env": {
+             "API_BASE_URL": "http://localhost:3001"
+           }
+         }
+       }
+     }
+     ```
+
+5. **Testing**
+   - Restart Claude Desktop
+   - Verify MCP server appears in settings
+   - Test queries:
+     - "Using orbit-ctrl, what satellites are above Tokyo right now?"
+     - "Check if there are any anomalies in the system"
+     - "What's the current space weather?"
+
+6. **Documentation**
+   - `packages/mcp-server/README.md`:
+     ```markdown
+     # orbit.ctrl MCP Server
+     
+     MCP server exposing satellite tracking and space weather tools.
+     
+     ## Installation
+     
+     ```bash
+     pnpm install -g @orbit-ctrl/mcp-server
+     ```
+     
+     ## Configuration
+     
+     Add to Claude Desktop config:
+     
+     ```json
+     {
+       "mcpServers": {
+         "orbit-ctrl": {
+           "command": "orbit-ctrl-mcp"
+         }
+       }
+     }
+     ```
+     
+     ## Available Tools
+     
+     - `get_satellite_position` — Current or historical satellite position
+     - `predict_passes` — Predict visible passes from a location
+     - `get_space_weather` — Current space weather conditions
+     - `get_satellite_telemetry` — Real-time telemetry for a satellite
+     - `get_anomalies` — Active anomalies in the system
+     - `find_satellites_above` — Satellites currently above a location
+     ```
+
+7. **Demo video**
+   - Record 90-second screen capture:
+     1. Show dashboard running with live telemetry
+     2. Switch to Claude Desktop
+     3. Ask: "What satellites are overhead with anomalies?"
+     4. Show Claude using MCP tools to query the system
+     5. Return to dashboard, confirm data matches
+   - Upload to YouTube (unlisted)
+   - Add link to main README
+
+### Deliverable
+
+- MCP server package built and globally linkable
+- Claude Desktop can connect to server successfully
+- External queries via Claude Desktop return correct data
+- Demo video uploaded and linked in README
+- README documentation explains setup for users
+
+**Time:** 10-14 hours
+
+---
+
+## Phase 6: Polish + Ship (Week 6)
+
+**Goal:** Production-ready deployment with case study documentation.
+
+### Tasks
+
+1. **Performance optimization**
+   - Frontend:
+     - Virtualize satellite list with `react-window`
+     - Use Three.js GPU instancing for >100 satellites
+     - Debounce telemetry chart updates to 10Hz instead of 1Hz
+   - Backend:
+     - Redis cache for orbital positions (1-minute TTL)
+     - Rate limiting: 100 req/min per IP
+
+2. **Loading states + error boundaries**
+   - Add `<Suspense>` boundaries around:
+     - Globe component (show spinner while Three.js loads)
+     - Telemetry dashboard (show skeleton)
+     - Agent chat (show "thinking..." indicator)
+   - Error boundaries:
+     - Catch WebSocket disconnection, show "reconnecting..." message
+     - Catch API errors, show toast notification
+
+3. **Deployment**
+   - Frontend (Vercel):
+     ```bash
+     cd apps/web
+     vercel --prod
+     ```
+     - Set env vars: `VITE_API_URL=https://api.orbit-ctrl.fly.dev`
+   
+   - Backend (Fly.io):
+     ```bash
+     cd apps/api
+     fly launch
+     fly deploy
+     ```
+     - Configure:
+       ```toml
+       # fly.toml
+       [env]
+         PORT = "8080"
+       
+       [[services]]
+         internal_port = 8080
+         protocol = "tcp"
+       
+         [[services.ports]]
+           handlers = ["http"]
+           port = 80
+         
+         [[services.ports]]
+           handlers = ["tls", "http"]
+           port = 443
+       ```
+
+4. **README documentation**
+   - Update root `README.md`:
+     ```markdown
+     # orbit.ctrl — Satellite Mission Control Dashboard
+     
+     Real-time satellite tracking with AI-powered natural language queries.
+     
+     🌍 [Live Demo](https://orbit-ctrl.vercel.app) | 📺 [Demo Video](https://youtube.com/...)
+     
+     ## Features
+     
+     - 3D globe with 100+ satellites in real-time orbital motion
+     - Telemetry simulation with anomaly detection
+     - AI agent for natural language queries ("which satellites over Tokyo have anomalies?")
+     - MCP server for external AI client integration
+     - Space weather integration
+     
+     ## Architecture
+     
+     See [ARCHITECTURE.md](./ARCHITECTURE.md)
+     
+     ## Tech Stack
+     
+     - Frontend: React + TypeScript + Three.js + Vite
+     - Backend: Node.js + TypeScript + Fastify + WebSocket
+     - AI: Claude API with tool calling
+     - MCP: @modelcontextprotocol/sdk
+     - Data: Celestrak (TLE) + NOAA SWPC (space weather)
+     
+     ## Quick Start
+     
+     ```bash
+     pnpm install
+     pnpm dev
+     ```
+     
+     Open http://localhost:5173
+     
+     ## MCP Server
+     
+     See [packages/mcp-server/README.md](./packages/mcp-server/README.md)
+     
+     ## Screenshots
+     
+     [Insert screenshots]
+     
+     ## Case Study
+     
+     [Link to blog post]
+     ```
+
+5. **Case study blog post**
+   - Write on Medium/Dev.to (800-1200 words)
+   - Structure:
+     - **Problem**: Breaking into space industry requires demonstrating systems thinking
+     - **Solution**: Build a mission control dashboard that shows real-world engineering
+     - **Architecture**: Explain 4-layer design with diagram
+     - **Technical decisions**: Why globe.gl, why WebSocket, why MCP
+     - **Challenges**: Orbital mechanics, realistic telemetry simulation, multi-hop agent queries
+     - **Results**: Live demo, MCP integration, production deployment
+   - Include:
+     - 3-4 screenshots from dashboard
+     - Embed demo video
+     - Link to GitHub repo
+     - Link to live site
+
+6. **Screenshots**
+   - Capture:
+     - Full dashboard view (1440x900)
+     - Globe with multiple satellites and ground tracks
+     - Telemetry strip showing live data
+     - Agent chat showing multi-hop query
+     - Claude Desktop using MCP server
+   - Optimize to <500KB each (use TinyPNG)
+   - Add to `docs/images/`
+
+7. **Final testing checklist**
+   - [ ] TLE data refreshes correctly after 24 hours
+   - [ ] WebSocket reconnects automatically on disconnect
+   - [ ] All 6 tools callable via MCP server
+   - [ ] Agent handles malformed queries gracefully
+   - [ ] Mobile responsive (at least tablet)
+   - [ ] No console errors
+   - [ ] Lighthouse score >90
+
+### Deliverable
+
+- Live URL: https://orbit-ctrl.vercel.app
+- GitHub repo: public, with comprehensive README
+- Demo video: 90 seconds, uploaded to YouTube
+- Case study: published on Medium/Dev.to
+- All screenshots captured and optimized
+- MCP server documented and testable
+
+**Time:** 12-16 hours
+
+---
+
+## Total Timeline
+
+- Phase 0: 6-8 hours
+- Phase 1: 12-16 hours
+- Phase 2: 10-14 hours
+- Phase 3: 14-18 hours
+- Phase 4: 14-18 hours
+- Phase 5: 10-14 hours
+- Phase 6: 12-16 hours
+
+**Total: 78-104 hours** (~3-4 weeks full-time or 6-7 weeks part-time)
+
+## Risk Mitigation
+
+**Risk: Orbital calculations are incorrect**
+- Mitigation: Compare against known satellite positions from N2YO API
+- Test case: ISS position should match within 50km of published data
+
+**Risk: WebSocket performance degrades with many satellites**
+- Mitigation: Implement room-based subscriptions, only stream satellites user is viewing
+- Fallback: Reduce update frequency to 2s instead of 1s
+
+**Risk: AI agent fails on edge cases**
+- Mitigation: Add comprehensive tool testing, mock API responses
+- Fallback: Provide example queries in UI, disable freeform input
+
+**Risk: Deployment complexity**
+- Mitigation: Use platforms with zero-config (Vercel, Fly.io)
+- Fallback: Deploy frontend only, mock backend responses
+
+## Post-Launch
+
+After initial 6 weeks:
+- Add more satellites (currently ~10, expand to 100+)
+- Implement user accounts (save favorite satellites)
+- Add historical playback (see orbital positions from past)
+- Integrate amateur radio frequencies (contact satellites)
+- Mobile app (React Native, share code with web)
