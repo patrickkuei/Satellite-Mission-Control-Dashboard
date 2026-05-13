@@ -7,6 +7,7 @@ A production-grade satellite mission control dashboard showcasing full-stack eng
 ## What We're Building
 
 An interactive web application that:
+
 - Tracks 100+ satellites in real-time with 3D orbital visualization
 - Simulates mission-critical telemetry with anomaly detection
 - Provides natural language query interface via AI agent
@@ -26,6 +27,7 @@ This isn't just another satellite tracker. It demonstrates:
 ## Target Audience
 
 Space industry hiring managers and engineers at:
+
 - ispace (lunar exploration, Tokyo-based)
 - Axelspace (microsatellites, Tokyo-based)
 - Astroscale (orbital debris removal, Tokyo-based)
@@ -47,6 +49,7 @@ These companies need engineers who can build ground software, mission operations
 ## Success Metrics
 
 Portfolio piece is successful when:
+
 1. Live URL is demoable in interviews without setup
 2. README clearly explains technical decisions
 3. Demo video (90 seconds) shows all three "wow moments":

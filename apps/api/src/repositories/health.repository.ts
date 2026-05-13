@@ -8,18 +8,7 @@
  * Repositories may only be called by services. Never import this file from
  * routes or controllers directly.
  */
-
-/**
- * Snapshot of process-level health facts.
- */
-export interface ProcessHealthSnapshot {
-  /** Seconds since the Node process started. */
-  uptimeSeconds: number;
-  /** Operating-system process ID. */
-  pid: number;
-  /** Resident set size in megabytes (rough working memory). */
-  memoryRssMb: number;
-}
+import type { ProcessHealthSnapshot } from '@orbit-ctrl/types';
 
 /**
  * Repository façade for process-level health data.

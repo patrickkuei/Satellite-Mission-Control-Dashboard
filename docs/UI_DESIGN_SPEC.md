@@ -5,6 +5,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 ## Design Philosophy
 
 **Core principles:**
+
 1. **Restraint** — Generous whitespace, single accent color, minimal borders
 2. **Typographic hierarchy** — Three font families (serif/sans/mono) with clear roles
 3. **Data as content** — Numbers and telemetry get editorial treatment (serif for big numbers)
@@ -12,6 +13,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 5. **Production credibility** — Looks like something SpaceX/Planet Labs would deploy, not a hackathon project
 
 **Visual references:**
+
 - Bloomberg Terminal (density without clutter)
 - NASA mission control (technical but readable)
 - Editorial dashboards (NYT graphics, The Pudding)
@@ -36,7 +38,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 --color-accent: #ff6b35; /* Amber/orange — mission control classic */
 --color-success: #4ade80; /* Green for nominal status */
 --color-warning: #fbbf24; /* Yellow for warnings */
---color-danger: #ef4444;  /* Red for alerts */
+--color-danger: #ef4444; /* Red for alerts */
 ```
 
 ### Dark Mode
@@ -58,6 +60,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 ```
 
 **Accent color rationale:**
+
 - Orange (#ff6b35) is neutral — not "tech blue", not red (reserved for alerts)
 - Evokes heat/energy (relevant for satellites, solar activity)
 - High contrast in both light/dark modes
@@ -74,6 +77,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 ```
 
 **Load weights:**
+
 - Inter: 400 (regular), 500 (medium) — no bold (600/700 too heavy against light UI)
 - Playfair Display: 400, 500 italic
 - JetBrains Mono: 400, 500
@@ -103,16 +107,16 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 
 ### Usage Guide
 
-| Element | Family | Example |
-|---------|--------|---------|
-| Brand mark | Serif italic | "orbit.ctrl" |
-| Section headers | Serif | "Live orbital view" |
-| Subsection headers | Sans medium | "Upcoming passes" |
-| Data labels | Sans regular | "Bus voltage", "Internal temp" |
-| Large numbers | Mono medium | "28.14", "419.7" |
-| Small numbers | Mono regular | "14:31:09 UTC", "Z = 3.2" |
-| Body text | Sans regular | Agent responses, descriptions |
-| UI buttons | Sans medium | "Connect", "Refresh" |
+| Element            | Family       | Example                        |
+| ------------------ | ------------ | ------------------------------ |
+| Brand mark         | Serif italic | "orbit.ctrl"                   |
+| Section headers    | Serif        | "Live orbital view"            |
+| Subsection headers | Sans medium  | "Upcoming passes"              |
+| Data labels        | Sans regular | "Bus voltage", "Internal temp" |
+| Large numbers      | Mono medium  | "28.14", "419.7"               |
+| Small numbers      | Mono regular | "14:31:09 UTC", "Z = 3.2"      |
+| Body text          | Sans regular | Agent responses, descriptions  |
+| UI buttons         | Sans medium  | "Connect", "Refresh"           |
 
 ## Layout Structure
 
@@ -140,11 +144,13 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 **Desktop (1440px+):** Layout as shown above
 
 **Tablet (768px - 1439px):**
+
 - Hide left rail, show satellite list as dropdown
 - Main globe takes center
 - Right rail stacks below (full width)
 
 **Mobile (<768px):**
+
 - Single column stack
 - Globe takes full width, fixed height 300px
 - All panels stack vertically
@@ -160,20 +166,24 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 **Padding:** `0 20px`
 
 **Layout:**
+
 ```
 [Brand Mark "orbit.ctrl"] [Status Indicator] [Spacer] [UTC Clock] [Mission Time]
 ```
 
 **Brand Mark:**
+
 - Font: Playfair Display 15px italic medium
 - Color: `var(--color-text-primary)`
 - Hover: subtle scale(1.02)
 
 **Status Indicator:**
+
 - Dot: 6px circle, `var(--color-success)` (nominal) or `var(--color-warning)` (degraded)
 - Label: 11px sans, `var(--color-text-secondary)`, "nominal" / "degraded"
 
 **Clock:**
+
 - Font: JetBrains Mono 11px
 - Color: `var(--color-text-secondary)`
 - Format: "2026-05-12 · 14:31:09 UTC"
@@ -187,10 +197,12 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 **Padding:** `16px`
 
 **Header:**
+
 - "Active tracking" — Playfair Display 13px
 - Count badge: "(3)" — mono 10px tertiary
 
 **Satellite Row:**
+
 ```
 [Dot] ISS (ZARYA)     [Status]
       ↓ mono 10px
@@ -207,6 +219,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 - Selected: `border-left: 2px solid var(--color-accent)`
 
 **Categories Filter:**
+
 - Dropdown or tabs: "Stations / SpaceX / Weather / GPS / All"
 - Sans 11px, tertiary when inactive
 
@@ -218,17 +231,20 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 **Padding:** `16px`
 
 **Title:**
+
 - "Live orbital view" — Playfair Display 13px
 - Satellite count: Mono 10px tertiary "(142 tracked)"
 
 **Globe Settings (overlay, top-right):**
+
 - Icons: 16px, tertiary color
 - Options: Day/Night toggle, Grid lines, Ground tracks
 
 **Legend (overlay, bottom-left):**
+
 - Color swatches (6px circles) with labels
 - Sans 10px tertiary
-- Example: "[Amber dot] selected target  [Blue dot] anomaly active  [Gray dot] nominal"
+- Example: "[Amber dot] selected target [Blue dot] anomaly active [Gray dot] nominal"
 
 ### Right Rail — Agent Chat Panel
 
@@ -238,10 +254,12 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 **Padding:** `16px`
 
 **Header:**
+
 - "Agent" — Playfair Display 13px
 - Model badge: "claude-opus-4.7" — Mono 10px tertiary
 
 **Message List:**
+
 - User message:
   - Background: `var(--color-bg-tertiary)`
   - Padding: `8px 12px`
@@ -254,6 +272,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
   - Syntax highlighting for JSON/code blocks
 
 **Input:**
+
 - Textarea: 36px min-height, auto-expand
 - Placeholder: "Ask about satellites, space weather, anomalies..."
 - Border: `1px solid var(--color-border-secondary)`
@@ -268,6 +287,7 @@ Design approach: Editorial-tech hybrid. Clean, restrained mission control aesthe
 **Padding:** `12px 14px`
 
 **Layout:**
+
 ```
 ISS (ZARYA)           [Close X]
 NORAD 25544
@@ -278,6 +298,7 @@ NEXT   14:32 UTC
 ```
 
 **Styling:**
+
 - Name: Sans 14px medium
 - NORAD ID: Mono 11px tertiary
 - Labels: Sans 10px tertiary, uppercase
@@ -302,11 +323,13 @@ NEXT   14:32 UTC
 ```
 
 **Card styling:**
+
 - No background (blend with strip)
 - Border right: `1px solid var(--color-border-tertiary)` (except last)
 - Padding: `0 12px`
 
 **Sparkline:**
+
 - Library: Recharts LineChart
 - Stroke: Green (#3B6D11) for nominal, Amber (#BA7517) for warn, Red for alert
 - Stroke width: 1px
@@ -314,6 +337,7 @@ NEXT   14:32 UTC
 - 100 data points max (downsample if needed)
 
 **Status colors:**
+
 - Green: value in nominal range
 - Amber: approaching threshold (Z > 2)
 - Red: anomaly detected (Z > 3)
@@ -326,11 +350,13 @@ NEXT   14:32 UTC
 **Padding:** `10px 16px`
 
 **Alert Row:**
+
 ```
 [Icon] 14:21:09 UTC   HST — temperature drift detected   Z = 3.2 · severity warn
 ```
 
 **Styling:**
+
 - Icon: 14px warning triangle (amber) or alert circle (red)
 - Timestamp: Mono 11px tertiary
 - Message: Sans 12px
@@ -339,6 +365,7 @@ NEXT   14:32 UTC
 - Border bottom: `1px solid var(--color-border-tertiary)`
 
 **Severity colors:**
+
 - Warn: Amber icon, amber accent on Z-score
 - Alert: Red icon, red accent on Z-score
 
@@ -347,62 +374,74 @@ NEXT   14:32 UTC
 ### Hover States
 
 **Satellite Row:**
+
 - Background: `var(--color-bg-primary)`
 - Cursor: pointer
 - Transition: 150ms ease
 
 **Button:**
+
 - Background: `var(--color-bg-tertiary)`
 - Border: `1px solid var(--color-border-secondary)`
 - Transition: 100ms ease
 
 **Globe Satellite Marker:**
+
 - Scale: 1.2
 - Glow: `box-shadow: 0 0 12px var(--color-accent)`
 
 ### Focus States
 
 **Input/Textarea:**
+
 - Border: `1px solid var(--color-accent)`
 - Outline: `2px solid rgba(255, 107, 53, 0.2)`
 - Outline offset: 2px
 
 **Button:**
+
 - Outline: `2px solid var(--color-accent)`
 - Outline offset: 2px
 
 ### Active States
 
 **Button:**
+
 - Transform: `scale(0.98)`
 - Background: `var(--color-bg-secondary)`
 
 **Satellite Row (selected):**
+
 - Border left: `2px solid var(--color-accent)`
 - Background: `var(--color-bg-tertiary)`
 
 ### Loading States
 
 **Globe:**
+
 - Skeleton: wireframe Earth with pulsing opacity
 - Message: "Loading orbital data..." — Sans 12px tertiary
 
 **Telemetry Card:**
+
 - Skeleton bars for sparkline
 - Shimmer effect on value
 
 **Agent Response:**
+
 - Typing indicator: "..." pulsing — Mono 12px tertiary
 
 ### Error States
 
 **WebSocket Disconnect:**
+
 - Banner at top: "Reconnecting to telemetry stream..."
 - Background: `var(--color-warning)`
 - Text: Dark amber
 - Icon: Spinner
 
 **API Error:**
+
 - Toast notification: bottom-right
 - Background: `var(--color-danger)`
 - Text: White
@@ -411,11 +450,13 @@ NEXT   14:32 UTC
 ## Animation Guidelines
 
 **Principles:**
+
 - Subtle, functional animations only
 - No gratuitous motion (this isn't a marketing site)
 - Respect `prefers-reduced-motion`
 
 **Allowed animations:**
+
 - Satellite orbital motion: continuous, 60fps target
 - Sparkline updates: smooth line transition (300ms ease)
 - Panel expand/collapse: 200ms ease-out
@@ -423,6 +464,7 @@ NEXT   14:32 UTC
 - Loading spinners: continuous rotation
 
 **Forbidden:**
+
 - Auto-playing particle effects
 - Parallax scrolling
 - Pulsing/glowing UI chrome
@@ -548,11 +590,13 @@ Layout as specified above. No changes.
 **No CSS-in-JS:** Use CSS Modules for scoping, CSS variables for theming. Avoid runtime style generation (performance overhead).
 
 **Globe library constraints:**
+
 - globe.gl provides its own styling for Three.js canvas
 - We control wrapper div only
 - Override default colors via props, not CSS
 
 **Recharts customization:**
+
 - Use `<ResponsiveContainer>` to fit parent
 - Custom stroke colors via `stroke` prop
 - Disable animations if `prefers-reduced-motion`

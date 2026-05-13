@@ -11,6 +11,11 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import {
+  serializerCompiler,
+  validatorCompiler,
+  type ZodTypeProvider,
+} from 'fastify-type-provider-zod';
 
 import { createHealthRepository } from './repositories/health.repository.js';
 import { createHealthService } from './services/health.service.js';
@@ -45,7 +50,13 @@ export async function buildServer(): Promise<FastifyInstance> {
               options: { colorize: true, translateTime: 'HH:MM:ss.l' },
             },
     },
-  });
+  }).withTypeProvider<ZodTypeProvider>();
+
+  // ── Zod as schema source of truth ────────────────────────────────────────
+  // Routes register Zod schemas; these compilers drive request validation +
+  // response serialization. All shared schemas live in `@orbit-ctrl/types`.
+  server.setValidatorCompiler(validatorCompiler);
+  server.setSerializerCompiler(serializerCompiler);
 
   // ── Plugins ──────────────────────────────────────────────────────────────
   await server.register(cors, { origin: true });

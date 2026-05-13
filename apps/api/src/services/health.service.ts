@@ -5,27 +5,12 @@
  * `package.json`.
  *
  * This is the canonical "service" reference for the codebase: pure logic,
- * HTTP-agnostic, dependencies injected via the factory.
+ * HTTP-agnostic, dependencies injected via the factory. The {@link HealthReport}
+ * contract itself lives in `@orbit-ctrl/types` so the frontend status indicator
+ * shares the same shape.
  */
+import type { HealthReport } from '@orbit-ctrl/types';
 import type { HealthRepository } from '../repositories/health.repository.js';
-
-/** Full health report returned to the client. */
-export interface HealthReport {
-  /** Always `"ok"` while the service is up. Reserved for future degraded states. */
-  status: 'ok' | 'degraded';
-  /** Service identifier, useful when multiple APIs are deployed under one gateway. */
-  service: string;
-  /** Semver of `@orbit-ctrl/api` at build time. */
-  version: string;
-  /** ISO 8601 timestamp at the moment the report was generated. */
-  timestamp: string;
-  /** Process-level facts from the {@link HealthRepository}. */
-  process: {
-    uptimeSeconds: number;
-    pid: number;
-    memoryRssMb: number;
-  };
-}
 
 /** Public surface of the health service. */
 export interface HealthService {

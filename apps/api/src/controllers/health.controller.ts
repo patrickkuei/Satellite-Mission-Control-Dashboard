@@ -6,7 +6,8 @@
  * output. No business logic, no direct repository/client calls.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { HealthService, HealthReport } from '../services/health.service.js';
+import type { HealthReport } from '@orbit-ctrl/types';
+import type { HealthService } from '../services/health.service.js';
 
 /** Public surface of the health controller. */
 export interface HealthController {

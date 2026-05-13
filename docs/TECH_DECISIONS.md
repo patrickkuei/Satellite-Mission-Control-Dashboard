@@ -129,35 +129,31 @@ const useUIStore = create<UIState>((set) => ({
 **Why Fastify:**
 
 - Faster than Express (2x throughput in benchmarks)
-- Built-in schema validation
+- Pluggable schema validation — we plug in Zod (see "Validation" below) instead of hand-written JSON Schema
 - First-class TypeScript support
 - WebSocket plugin (`@fastify/websocket`)
 - CORS plugin (`@fastify/cors`)
 
-**Example route with schema:**
+**Example route — Zod-driven (`fastify-type-provider-zod`):**
 
 ```typescript
-fastify.get(
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { PositionSchema } from '@orbit-ctrl/types';
+
+fastify.withTypeProvider<ZodTypeProvider>().get(
   '/satellites/:id/position',
   {
     schema: {
-      params: {
-        type: 'object',
-        properties: { id: { type: 'number' } },
-        required: ['id'],
-      },
-      querystring: {
-        type: 'object',
-        properties: { time: { type: 'string', format: 'date-time' } },
-      },
+      params: z.object({ id: z.coerce.number().int().positive() }),
+      querystring: z.object({ time: z.string().datetime().optional() }),
+      response: { 200: PositionSchema },
     },
   },
-  async (req, reply) => {
-    const position = await orbitService.getPosition(req.params.id, req.query.time);
-    return position;
-  },
+  async (req) => orbitService.getPosition(req.params.id, req.query.time),
 );
 ```
+
+No hand-written JSON Schema lives in route files. One schema → request validation + response serialization + inferred TS types for `req.params` / `req.query`.
 
 ### WebSocket (not SSE)
 
@@ -258,6 +254,35 @@ https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json
 - X-ray flux: `https://services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json`
 
 **Update frequency:** Every 15 minutes
+
+## Validation Layer
+
+### Zod (schema-first contracts)
+
+**Why Zod:**
+
+- Single definition gives runtime validation + inferred TS types. Eliminates the constant TS-interface / JSON-Schema drift that ruins typed Node APIs.
+- `fastify-type-provider-zod` plugs Zod directly into Fastify's validator + serializer hooks — no Ajv compilation step in our code, no parallel JSON Schema definitions.
+- Frontend can validate inbound WebSocket frames against the same schema the backend used to emit them. Real wire-level safety, not just typed `fetch` wrappers.
+- Output is JSON-Schema-compatible (via `zod-to-json-schema`), so when Phase 5's MCP server needs each tool's `inputSchema`, it's a one-liner from the same Zod schema.
+
+**Why not alternatives:**
+
+- **TypeBox** — gives JSON Schema natively (good for Fastify), but ergonomics are worse and frontend-side validation is awkward. Zod's developer experience is the bigger lever here than raw perf.
+- **Valibot** — smaller bundle, but Fastify/MCP ecosystem support is thinner. Not worth the integration cost for a portfolio demo.
+- **Hand-written JSON Schema + `ajv`** — what Fastify uses by default. Doubles the source of truth: schema + matching TS interface. Exactly the drift we're paying Zod to prevent.
+- **Yup / io-ts** — Yup is React-form-centric and doesn't infer well; io-ts is fpts-flavored and adds a learning tax with no wins over Zod for this project.
+
+**Pinned to Zod 3.x.** `fastify-type-provider-zod@2.x` (Fastify 4 compatible) requires Zod 3. When/if we upgrade Fastify to 5, both move together.
+
+**Rules of engagement** — see `CLAUDE.md` → "Validation" for the full ruleset. Headlines:
+
+1. **Wire shape, not in-memory shape.** Timestamps are `z.string().datetime()`. Conversion to `Date` happens at the consumer.
+2. **One file per domain** under `packages/types/src/`.
+3. **`.strict()` by default** on object schemas.
+4. **JSDoc on the schema**, not the inferred type.
+5. **Backend routes use the Zod type provider** — no inline JSON Schema.
+6. **Frontend validates inbound WS frames** with `WSMessageSchema.parse(...)`.
 
 ## AI Layer
 

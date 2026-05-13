@@ -8,6 +8,7 @@ The design prioritizes:
 
 - **Separation of concerns**: Each service has one responsibility
 - **Shared tool interface**: Both frontend agent and MCP server use the same tool registry
+- **Shared wire contracts**: Every cross-layer payload (REST body, WS frame, MCP tool I/O) is a Zod schema in `packages/types`. One definition drives runtime validation + inferred TypeScript types — no drift between frontend and backend. See `TECH_DECISIONS.md` → "Validation Layer".
 - **Real-time data flow**: WebSocket for telemetry streams, REST for agent queries
 - **Horizontal scalability**: Stateless services behind gateway
 

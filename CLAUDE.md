@@ -28,8 +28,9 @@ orbit-ctrl/
 ## Locked tech (don't substitute without asking)
 
 - **pnpm workspaces**, TypeScript strict everywhere, no `any`
+- **Validation:** **Zod** (v3) is the single schema source in `packages/types`. Backend wires it into Fastify via `fastify-type-provider-zod`. Schemas describe wire shape (ISO-8601 strings, not `Date`); TS types are inferred via `z.infer`. See "Validation" section below.
 - **Frontend:** React 18 + Vite + globe.gl + TanStack Query + Zustand + Recharts + CSS Modules
-- **Backend:** Fastify + `@fastify/websocket` + `satellite.js`
+- **Backend:** Fastify + `@fastify/websocket` + `fastify-type-provider-zod` + `satellite.js`
 - **AI host:** in-house orchestrator behind a normalized `LLMProvider` interface. **Primary provider: Google Gemini** (`@google/genai`, free tier for demo). Anthropic (`@anthropic-ai/sdk`, latest Sonnet 4.x `claude-sonnet-4-6`) is a second adapter, swappable at config time. **No LangChain** — direct SDKs only; portfolio goal is protocol-level fluency.
 - **MCP:** `@modelcontextprotocol/sdk`, stdio transport. Project is an MCP **server** (exposes tools to Claude Desktop / Cursor) and the in-process agent is an MCP **host** (consumes the same tool registry via a `ToolBroker`).
 - **Data:** Celestrak (TLE, JSON-file cache, 24h), NOAA SWPC (in-memory, 15-min poll)
@@ -97,12 +98,34 @@ Concrete rules that shape day-to-day decisions. Skipped vague platitudes ("write
 
 **Single source of truth.** Every domain fact has exactly one home:
 
-- Types → `packages/types`
+- Types + wire schemas → `packages/types` (schema-first: see "Validation" below)
 - Tool definitions → `packages/tools` (consumed by both agent and MCP)
 - Design tokens → `apps/web/src/styles/globals.css`
 - API version + service name → `apps/api/src/server.ts`
 
 If you find yourself copying a value, stop and extract it. If you find yourself wanting to change "the same thing" in two places, the abstraction is missing.
+
+## Validation (Zod, schema-first)
+
+Every cross-layer contract is a **Zod schema** in `packages/types`. The TypeScript type is derived from the schema, not the other way around:
+
+```ts
+export const SatelliteSchema = z.object({ ... }).strict();
+export type Satellite = z.infer<typeof SatelliteSchema>;
+```
+
+One definition gives us runtime validation (REST request/response, WebSocket frames, MCP tool I/O) and compile-time types with no chance of drift.
+
+**Rules:**
+
+- **Wire shape, not in-memory shape.** Schemas describe what crosses the network. All timestamps are `z.string().datetime()` (ISO 8601). Conversion to `Date` happens at the consumer when needed, never inside the schema.
+- **One file per domain** under `packages/types/src/` (`satellite.ts`, `telemetry.ts`, `ws.ts`, ...). Barrel-exported from `index.ts`. Don't grow a single mega-file.
+- **`.strict()` by default** on object schemas — unknown fields fail validation. Loosen only with an explicit comment explaining why.
+- **JSDoc lives on the schema**, not the inferred type. The type inherits it through `z.infer`.
+- **Backend uses `fastify-type-provider-zod`.** Routes register the shared schema directly (`schema: { response: { 200: HealthReportSchema } }`) — never hand-write JSON Schema in a route file.
+- **Frontend validates inbound** WebSocket frames with `WSMessageSchema.parse(...)`. Don't trust the wire just because the type checker is happy.
+
+If `packages/types` doesn't export it, it isn't shared. If you find yourself reaching for `any` or duplicating a shape, add the schema first.
 
 **DRY, but with the rule of three.** Extract on the _third_ duplication, not the second. Two similar functions are almost always fine; three is a signal that the shape is real. Premature abstraction is harder to undo than duplication — when in doubt, duplicate and wait. Exception: anything in `packages/types` or the tool registry is shared by definition; don't duplicate those even once.
 

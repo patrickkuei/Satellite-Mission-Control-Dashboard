@@ -48,42 +48,53 @@
      ```
    - Extend in each package
 
-4. **Create shared types package**
-   - `packages/types/src/index.ts`:
+4. **Create shared contracts package (schema-first, Zod)**
+   - Install `zod@^3.23.8` in `packages/types` and in `apps/api`. Install `fastify-type-provider-zod@^2` in `apps/api`.
+   - One file per domain under `packages/types/src/`: `satellite.ts`, `position.ts`, `telemetry.ts`, `anomaly.ts`, `pass.ts`, `observer.ts`, `weather.ts`, `ws.ts`, `health.ts`. Barrel-export from `index.ts`.
+   - **Schema-first** — every export starts as a Zod schema; the TS type is derived via `z.infer`:
 
      ```typescript
-     export interface Satellite {
-       noradId: number;
-       name: string;
-       tle: { line1: string; line2: string };
-     }
+     // packages/types/src/satellite.ts
+     import { z } from 'zod';
 
-     export interface Position {
-       lat: number;
-       lon: number;
-       alt: number; // km
-       velocity: number; // km/s
-       timestamp: Date;
-     }
+     export const TLESchema = z
+       .object({
+         line1: z.string().length(69),
+         line2: z.string().length(69),
+         epoch: z.string().datetime(),
+       })
+       .strict();
+     export type TLE = z.infer<typeof TLESchema>;
 
-     export interface Telemetry {
-       satelliteId: number;
-       voltage: number; // V
-       temperature: number; // °C
-       attitude: { pitch: number; roll: number; yaw: number }; // degrees
-       timestamp: Date;
-     }
-
-     export interface Anomaly {
-       id: string;
-       satelliteId: number;
-       metric: 'voltage' | 'temperature' | 'attitude';
-       severity: 'warn' | 'alert';
-       zscore: number;
-       timestamp: Date;
-       description: string;
-     }
+     export const SatelliteSchema = z
+       .object({
+         noradId: z.number().int().positive(),
+         name: z.string().min(1),
+         tle: TLESchema,
+       })
+       .strict();
+     export type Satellite = z.infer<typeof SatelliteSchema>;
      ```
+
+   - **Wire shape, not in-memory shape.** All timestamps are `z.string().datetime()` (ISO 8601). Conversion to `Date` is a consumer concern, never inside the schema.
+   - Wire the Zod type provider into Fastify once in `apps/api/src/server.ts`:
+
+     ```typescript
+     import {
+       serializerCompiler,
+       validatorCompiler,
+       type ZodTypeProvider,
+     } from 'fastify-type-provider-zod';
+     const server = Fastify({
+       logger: {
+         /* ... */
+       },
+     }).withTypeProvider<ZodTypeProvider>();
+     server.setValidatorCompiler(validatorCompiler);
+     server.setSerializerCompiler(serializerCompiler);
+     ```
+
+   - Routes register schemas directly — no hand-written JSON Schema in route files. See `CLAUDE.md` → "Validation" for the full ruleset.
 
 5. **Setup Vite for frontend**
    - `apps/web`: Vite + React + TypeScript template
@@ -105,6 +116,8 @@
 - [x] TypeScript compiles without errors
 - [x] Shared types imported correctly across packages
 - [x] Git repo initialized with proper .gitignore
+- [x] `packages/types` is schema-first (Zod): one file per domain, TS types via `z.infer`, wire-shape timestamps
+- [x] `apps/api` wires `fastify-type-provider-zod` at the composition root; `/health` validates against the shared `HealthReportSchema`
 
 **Time:** 6-8 hours
 

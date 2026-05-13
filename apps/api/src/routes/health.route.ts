@@ -1,9 +1,16 @@
 /**
  * Health route — Fastify plugin binding `GET /health` to the health
- * controller. Routes are pure URL → handler wiring + schema; no logic lives
- * here.
+ * controller. Routes are pure URL → handler wiring + schema only; no logic
+ * lives here.
+ *
+ * Response validation/serialization is driven by the shared
+ * {@link HealthReportSchema} from `@orbit-ctrl/types` via
+ * `fastify-type-provider-zod`. There is no hand-written JSON Schema in this
+ * file — one schema, one source of truth.
  */
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { HealthReportSchema } from '@orbit-ctrl/types';
 import type { HealthController } from '../controllers/health.controller.js';
 
 export interface HealthRouteOptions {
@@ -22,30 +29,12 @@ export const healthRoute: FastifyPluginAsync<HealthRouteOptions> = async (
   fastify: FastifyInstance,
   opts: HealthRouteOptions,
 ) => {
-  fastify.get(
+  fastify.withTypeProvider<ZodTypeProvider>().get(
     '/health',
     {
       schema: {
         response: {
-          200: {
-            type: 'object',
-            required: ['status', 'service', 'version', 'timestamp', 'process'],
-            properties: {
-              status: { type: 'string', enum: ['ok', 'degraded'] },
-              service: { type: 'string' },
-              version: { type: 'string' },
-              timestamp: { type: 'string', format: 'date-time' },
-              process: {
-                type: 'object',
-                required: ['uptimeSeconds', 'pid', 'memoryRssMb'],
-                properties: {
-                  uptimeSeconds: { type: 'number' },
-                  pid: { type: 'integer' },
-                  memoryRssMb: { type: 'number' },
-                },
-              },
-            },
-          },
+          200: HealthReportSchema,
         },
       },
     },
