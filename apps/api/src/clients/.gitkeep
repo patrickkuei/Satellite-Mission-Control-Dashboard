@@ -1,0 +1,2 @@
+Outbound HTTP/SDK clients land here (Celestrak, NOAA, Anthropic).
+See CLAUDE.md § Backend architecture.

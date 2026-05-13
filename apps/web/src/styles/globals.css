@@ -1,0 +1,125 @@
+/**
+ * Global design tokens for orbit.ctrl.
+ *
+ * See docs/UI_DESIGN_SPEC.md for the full token catalog and rationale.
+ * Light mode is the primary design target; dark mode kicks in via
+ * `prefers-color-scheme`.
+ *
+ * Token families:
+ * - `--color-bg-*`     : surface backgrounds (primary = page, secondary = rails)
+ * - `--color-text-*`   : text hierarchy (primary > secondary > tertiary)
+ * - `--color-border-*` : dividers (primary = strongest, tertiary = hairline)
+ * - `--color-accent`   : single amber accent (#ff6b35) — never tech-blue
+ * - `--color-success / --color-warning / --color-danger` : semantic states
+ * - `--font-{sans,serif,mono}` : three families with assigned roles
+ * - `--space-*`        : 2/4/8/12/16/20/24/32 px scale
+ * - `--radius-*`       : 4/8/12/full
+ * - `--shadow-*`       : use sparingly; this is a flat editorial design
+ * - `--z-*`            : layering hierarchy
+ */
+
+:root {
+  /* Surfaces */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f5f5f5;
+  --color-bg-tertiary: #fafafa;
+
+  /* Text */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-tertiary: #9ca3af;
+
+  /* Borders */
+  --color-border-primary: rgba(0, 0, 0, 0.15);
+  --color-border-secondary: rgba(0, 0, 0, 0.1);
+  --color-border-tertiary: rgba(0, 0, 0, 0.05);
+
+  /* Accent + semantic */
+  --color-accent: #ff6b35;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #ef4444;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+
+  /* Spacing */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-focus: 0 0 0 2px rgba(255, 107, 53, 0.2);
+
+  /* Z-index */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-modal: 200;
+  --z-toast: 300;
+  --z-tooltip: 400;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #0a0a0a;
+    --color-bg-secondary: #1a1a1a;
+    --color-bg-tertiary: #2a2a2a;
+
+    --color-text-primary: #e8e6e0;
+    --color-text-secondary: #888880;
+    --color-text-tertiary: #5a5a54;
+
+    --color-border-primary: rgba(255, 255, 255, 0.2);
+    --color-border-secondary: rgba(255, 255, 255, 0.12);
+    --color-border-tertiary: rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* Base reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

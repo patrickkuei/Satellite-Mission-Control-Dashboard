@@ -1,0 +1,25 @@
+{
+  "name": "@orbit-ctrl/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server exposing orbit.ctrl tools to external AI clients (Claude Desktop, Cursor)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "orbit-ctrl-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@orbit-ctrl/tools": "workspace:*",
+    "@orbit-ctrl/types": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.5.4"
+  }
+}

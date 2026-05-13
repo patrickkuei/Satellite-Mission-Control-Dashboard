@@ -1,0 +1,28 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.dotOk,
+.dotWarn,
+.dotOffline {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+}
+
+.dotOk {
+  background: var(--color-success);
+}
+
+.dotWarn {
+  background: var(--color-warning);
+}
+
+.dotOffline {
+  background: var(--color-danger);
+}
