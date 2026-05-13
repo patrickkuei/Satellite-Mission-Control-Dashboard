@@ -5,6 +5,7 @@
 Four-layer architecture: External APIs → Core Services → Gateway → Frontend + MCP Server
 
 The design prioritizes:
+
 - **Separation of concerns**: Each service has one responsibility
 - **Shared tool interface**: Both frontend agent and MCP server use the same tool registry
 - **Real-time data flow**: WebSocket for telemetry streams, REST for agent queries
@@ -44,12 +45,14 @@ Tool Registry (shared interface)
 ### Layer 1: External Data Sources
 
 **Celestrak TLE API**
+
 - Endpoint: `https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json`
 - Update frequency: Daily (TLE data changes slowly)
 - Cache strategy: SQLite or JSON file, refresh every 24 hours
 - Data format: JSON with NORAD catalog number, TLE line 1/2, epoch
 
 **NOAA Space Weather Prediction Center**
+
 - Endpoints:
   - 3-day Kp forecast: `https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json`
   - Real-time solar wind: `https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json`
@@ -61,6 +64,7 @@ Tool Registry (shared interface)
 ### Layer 2: Core Services
 
 **Orbit Service**
+
 - Responsibilities:
   - Fetch and cache TLE data
   - Propagate satellite positions using `satellite.js`
@@ -72,6 +76,7 @@ Tool Registry (shared interface)
   - `getGroundTrack(noradId: number, duration: number): LatLon[]`
 
 **Space Weather Service**
+
 - Responsibilities:
   - Poll NOAA APIs on schedule
   - Cache current conditions
@@ -82,6 +87,7 @@ Tool Registry (shared interface)
   - `getXRayFlux(): XRayData`
 
 **Telemetry Simulator**
+
 - Responsibilities:
   - Generate realistic per-satellite telemetry streams
   - Eclipse-aware power/temperature simulation
@@ -98,6 +104,7 @@ Tool Registry (shared interface)
 - Output: WebSocket stream at 1Hz per satellite
 
 **Anomaly Detection Engine**
+
 - Responsibilities:
   - Consume telemetry stream
   - Apply statistical detection
@@ -111,6 +118,7 @@ Tool Registry (shared interface)
 ### Layer 3: Gateway
 
 **WebSocket Server (Fastify + ws)**
+
 - Endpoints:
   - `ws://api.orbit-ctrl.local/telemetry` — streams all active satellite telemetry
   - `ws://api.orbit-ctrl.local/alerts` — streams anomaly alerts
@@ -118,6 +126,7 @@ Tool Registry (shared interface)
 - Reconnection: Client handles with exponential backoff
 
 **REST API (Fastify)**
+
 - Routes:
   - `GET /satellites` — list tracked satellites
   - `GET /satellites/:id/position?time=ISO8601` — position at specific time
@@ -127,9 +136,37 @@ Tool Registry (shared interface)
 - Authentication: None for demo (add API keys in production)
 - CORS: Allow all origins for demo
 
+### Layer 3.5: AI Host (in `apps/api`)
+
+The agent that answers `POST /agent/chat` is a **host** in MCP parlance — it owns the conversation loop, calls an LLM, and dispatches tool calls. It sits between the gateway and the tool registry.
+
+```
+       ┌──────────────────────────────┐
+       │   Agent loop (orchestrator)  │   provider-agnostic
+       └──────────────┬───────────────┘
+        LLMEvent      │     normalized
+        stream        │     tool calls
+       ┌──────────────┴───────────────┐
+       │  LLMProvider │  ToolBroker   │
+       │  (Gemini /   │  (in-process  │
+       │   Anthropic) │   registry    │
+       │              │   dispatch)   │
+       └──────────────┴───────────────┘
+```
+
+**Components:**
+
+- **Orchestrator** — runs the conversation loop: send messages → consume `LLMEvent`s → on `tool_call`, validate args, call `ToolBroker`, append `tool_result` → loop until `stop`. Knows nothing about Gemini/Anthropic specifics.
+- **`LLMProvider` adapters** — one per vendor SDK. Translate the tool registry to native shapes, stream native responses, emit normalized `LLMEvent`s. Owns transport-level retry (exponential backoff with jitter, ≤3 attempts). Live in `apps/api/src/clients/` (`gemini.client.ts`, `anthropic.client.ts`).
+- **`ToolBroker`** — reads `packages/tools` directly; same registry the MCP server exposes. Returns errors as `tool_result` with `is_error: true` rather than throwing, so the model can self-correct.
+
+**Failure handling:** transport errors retry in code; semantic errors (bad args, tool exceptions) feed back into the conversation as error tool results, capped at 3 self-corrections per step. Full rationale in `TECH_DECISIONS.md` → AI Layer → Retry strategy.
+
+**Provider selection:** primary is **Gemini** (`gemini-2.5-flash`, free tier — keeps the public demo cost-free). Anthropic Claude (`claude-sonnet-4-6`) is a second adapter selectable via env var.
+
 ### Layer 4: Tool Registry
 
-Shared schema used by both frontend agent and MCP server.
+Shared schema used by both the AI host (in-process) and the MCP server (over stdio).
 
 **Tool Definitions (JSON Schema)**
 
@@ -171,6 +208,7 @@ interface Tool {
 ### Layer 5A: Frontend
 
 **Technology:**
+
 - React 18 + TypeScript + Vite
 - State: TanStack Query (server state) + Zustand (UI state)
 - 3D: globe.gl (Three.js wrapper)
@@ -192,6 +230,7 @@ App
 ```
 
 **Data Flow:**
+
 - WebSocket connection opens on mount
 - Telemetry updates stored in Zustand
 - Anomalies trigger toast notifications + log updates
@@ -200,16 +239,19 @@ App
 ### Layer 5B: MCP Server
 
 **Technology:**
+
 - `@modelcontextprotocol/sdk` (official SDK)
 - Transport: stdio (for Claude Desktop) + SSE (for web clients)
 - Same tool registry as frontend agent
 
 **Capabilities:**
+
 - Exposes all 6 tools to external AI clients
 - Handles concurrent requests
 - Logs usage for debugging
 
 **Demo Flow:**
+
 1. User configures Claude Desktop with MCP server path
 2. User asks Claude: "Any satellites over Tokyo with anomalies in next 2 hours?"
 3. Claude calls `predict_passes` and `get_anomalies` via MCP
@@ -250,16 +292,19 @@ Claude Desktop user: "Show me the current space weather"
 ## Performance Considerations
 
 **Orbital Calculations**
+
 - Pre-calculate positions for next 24 hours, cache
 - Only recalculate on TLE update
 - For 100 satellites × 1440 minutes = 144k positions, cache in Redis
 
 **WebSocket Scaling**
+
 - Use Socket.IO with Redis adapter for multi-instance
 - Room-based subscriptions (user only gets satellites they're viewing)
 - Backpressure: drop frames if client can't keep up
 
 **Frontend Rendering**
+
 - Three.js: use GPU instancing for >100 satellites
 - React: virtualize satellite list (react-window)
 - Charts: downsample telemetry to 100 points max
@@ -267,11 +312,13 @@ Claude Desktop user: "Show me the current space weather"
 ## Security Notes
 
 For demo/portfolio purposes:
+
 - No authentication required
 - CORS allows all origins
 - Rate limiting: 100 req/min per IP
 
 For production:
+
 - Add API key authentication
 - JWT tokens for MCP server
 - Strict CORS policy

@@ -29,8 +29,8 @@ orbit-ctrl/
 - **pnpm workspaces**, TypeScript strict everywhere, no `any`
 - **Frontend:** React 18 + Vite + globe.gl + TanStack Query + Zustand + Recharts + CSS Modules
 - **Backend:** Fastify + `@fastify/websocket` + `satellite.js`
-- **AI:** `@anthropic-ai/sdk` — use latest Sonnet 4.x (`claude-sonnet-4-6`); docs reference an older snapshot
-- **MCP:** `@modelcontextprotocol/sdk`, stdio transport
+- **AI host:** in-house orchestrator behind a normalized `LLMProvider` interface. **Primary provider: Google Gemini** (`@google/genai`, free tier for demo). Anthropic (`@anthropic-ai/sdk`, latest Sonnet 4.x `claude-sonnet-4-6`) is a second adapter, swappable at config time. **No LangChain** — direct SDKs only; portfolio goal is protocol-level fluency.
+- **MCP:** `@modelcontextprotocol/sdk`, stdio transport. Project is an MCP **server** (exposes tools to Claude Desktop / Cursor) and the in-process agent is an MCP **host** (consumes the same tool registry via a `ToolBroker`).
 - **Data:** Celestrak (TLE, JSON-file cache, 24h), NOAA SWPC (in-memory, 15-min poll)
 - **Deploy:** Vercel (web), Fly.io (api — needs WS)
 
@@ -51,7 +51,7 @@ src/
 ├── routes/         # Router      — Fastify plugin per resource. URL → controller binding + schema only.
 ├── controllers/    # Controller  — HTTP adapter. Parse req, validate, call service, format reply. No business logic.
 ├── services/       # Service     — Business logic. Orchestrates clients + repositories. HTTP-agnostic (testable in isolation).
-├── clients/        # Client      — Outbound HTTP/SDK wrappers (Celestrak, NOAA, Anthropic). Pure I/O, no caching, no transformation logic.
+├── clients/        # Client      — Outbound HTTP/SDK wrappers (Celestrak, NOAA, Gemini, Anthropic). Pure I/O, no caching, no transformation logic. LLM clients implement the shared `LLMProvider` interface — provider-specific request/response shapes are normalized here and never leak past this layer.
 ├── repositories/   # Repository  — Persistence: TLE JSON cache, in-memory weather cache, telemetry history. Hides storage details.
 └── server.ts       # Composition root — wires plugins + registers route modules.
 ```
