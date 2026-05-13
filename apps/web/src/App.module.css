@@ -1,13 +1,14 @@
 .shell {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
 }
 
 .header {
-  height: 56px;
+  flex: 0 0 56px;
   padding: 0 var(--space-xl);
   display: flex;
   align-items: center;
@@ -33,6 +34,12 @@
 .center strong {
   color: var(--color-accent);
   font-weight: 500;
+}
+
+.headerRight {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-lg);
 }
 
 .stage {

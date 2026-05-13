@@ -9,7 +9,7 @@
  * thousands. If the curated NORAD IDs aren't found in the upstream response,
  * we pad with whatever Celestrak returned so the globe is never empty.
  */
-import type { GroundTrack, Position, Satellite } from '@orbit-ctrl/types';
+import type { GroundTrack, ObserverLocation, Pass, Position, Satellite } from '@orbit-ctrl/types';
 import type { CelestrakClient, CelestrakGroup } from '../clients/celestrak.client.js';
 import { CELESTRAK_GROUPS } from '../clients/celestrak.client.js';
 import type { TLERepository } from '../repositories/tle.repository.js';
@@ -56,6 +56,14 @@ export interface SatelliteService {
   groundTrack(noradId: number, periodMin?: number): Promise<GroundTrack>;
   /** Current positions of every tracked satellite. Optimised batch endpoint. */
   listPositions(time?: Date): Promise<Position[]>;
+  /**
+   * Predict visible passes of one satellite over a ground observer.
+   *
+   * @param noradId  - Curated-set NORAD ID.
+   * @param observer - Ground observer (lat/lon degrees, optional altMeters).
+   * @param hours    - Forward window length in hours.
+   */
+  passesOf(noradId: number, observer: ObserverLocation, hours: number): Promise<Pass[]>;
 }
 
 /**
@@ -92,6 +100,10 @@ export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteSer
     async listPositions(time = new Date()) {
       const all = await ensureLoaded();
       return all.map((s) => deps.orbit.positionAt(s, time));
+    },
+    async passesOf(noradId, observer, hours) {
+      const sat = await findSatellite(noradId);
+      return deps.orbit.predictPasses(sat, observer, new Date(), hours);
     },
   };
 }

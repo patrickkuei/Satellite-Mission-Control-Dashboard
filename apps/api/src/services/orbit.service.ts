@@ -2,20 +2,25 @@
  * Orbit service — pure orbital-mechanics layer.
  *
  * Wraps `satellite.js` (SGP4) so the rest of the codebase never imports it
- * directly. Two responsibilities:
+ * directly. Three responsibilities:
  *   1. Propagate a single satellite to an instant in time → {@link Position}.
  *   2. Sample a future trajectory at fixed intervals → {@link GroundTrack}.
+ *   3. Predict ground-observer visibility windows → {@link Pass}[].
  *
  * The service is stateless and HTTP-agnostic; unit tests instantiate it
  * directly and feed real TLEs (no network).
  */
 import * as satellite from 'satellite.js';
-import type { GroundTrack, Position, Satellite } from '@orbit-ctrl/types';
+import type { GroundTrack, ObserverLocation, Pass, Position, Satellite } from '@orbit-ctrl/types';
 
 /** Default sampling step for ground tracks. 30 s ≈ 200 km of LEO travel. */
 const GROUND_TRACK_STEP_SECONDS = 30;
 /** Default forward window for ground tracks. ~1 LEO orbit. */
 export const DEFAULT_GROUND_TRACK_MINUTES = 90;
+/** Pass-prediction step. 60 s is the textbook compromise between accuracy and runtime. */
+const PASS_STEP_SECONDS = 60;
+/** Hard cap on the pass-prediction window. Stops runaway queries (and bad TLEs). */
+export const PASS_MAX_HOURS = 72;
 
 /** Public surface of the orbit service. */
 export interface OrbitService {
@@ -38,6 +43,22 @@ export interface OrbitService {
    * @returns A {@link GroundTrack} with `points.length === floor(periodMin*60/stepSec) + 1`.
    */
   groundTrack(sat: Satellite, from: Date, periodMin?: number, stepSec?: number): GroundTrack;
+  /**
+   * Predict visible passes of a satellite over a ground observer.
+   *
+   * Steps SGP4 forward at {@link PASS_STEP_SECONDS}, records contiguous windows
+   * where the topocentric elevation rises above 0°, and reports start/end +
+   * peak. The 60 s step under-resolves brief LEO passes by up to a minute on
+   * each edge; good enough for a UI hint, not for pointing a dish.
+   *
+   * @param sat      - Satellite to track.
+   * @param observer - Ground observer (lat/lon in degrees, optional altitude).
+   * @param from     - Start of the prediction window.
+   * @param hours    - Length of the window. Clamped to {@link PASS_MAX_HOURS}.
+   * @returns Passes in chronological order. Empty array if none.
+   * @throws If SGP4 propagation fails at any sample point.
+   */
+  predictPasses(sat: Satellite, observer: ObserverLocation, from: Date, hours: number): Pass[];
 }
 
 /**
@@ -48,6 +69,9 @@ export interface OrbitService {
  * const orbit = createOrbitService();
  * const pos = orbit.positionAt(iss, new Date());
  * // pos.lat, pos.lon, pos.alt (km), pos.velocity (km/s)
+ *
+ * const passes = orbit.predictPasses(iss, { lat: 35.68, lon: 139.69 }, new Date(), 24);
+ * // passes[0].startTime, .endTime, .maxElevationDeg
  * ```
  */
 export function createOrbitService(): OrbitService {
@@ -68,6 +92,10 @@ export function createOrbitService(): OrbitService {
         points.push(propagate(sat, t));
       }
       return { satelliteId: sat.noradId, points };
+    },
+    predictPasses(sat, observer, from, hours) {
+      const windowHours = Math.min(Math.max(hours, 0), PASS_MAX_HOURS);
+      return findPasses(sat, observer, from, windowHours);
     },
   };
 }
@@ -106,4 +134,86 @@ function propagate(sat: Satellite, time: Date): Position {
 function velocityMagnitude(v: satellite.EciVec3<number> | boolean): number {
   if (!v || typeof v === 'boolean') return 0;
   return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+}
+
+/**
+ * Topocentric elevation of `sat` from `observer` at `time`, in degrees.
+ *
+ * Returns `-Infinity` if SGP4 fails — the caller treats that as "below
+ * horizon" so a single bad sample doesn't abort the entire scan.
+ */
+function elevationDeg(sat: Satellite, observer: ObserverLocation, time: Date): number {
+  const satrec = satellite.twoline2satrec(sat.tle.line1, sat.tle.line2);
+  const pv = satellite.propagate(satrec, time);
+  if (!pv.position || typeof pv.position === 'boolean') return -Infinity;
+
+  const gmst = satellite.gstime(time);
+  const observerGd = {
+    latitude: (observer.lat * Math.PI) / 180,
+    longitude: (observer.lon * Math.PI) / 180,
+    height: (observer.altMeters ?? 0) / 1000, // satellite.js wants km
+  };
+  const positionEcf = satellite.eciToEcf(pv.position, gmst);
+  const look = satellite.ecfToLookAngles(observerGd, positionEcf);
+  return (look.elevation * 180) / Math.PI;
+}
+
+/**
+ * Walk a fixed-step time grid, opening a pass at the first sample with
+ * elevation > 0 and closing it at the first sample below. The peak is the
+ * maximum observed across the open window.
+ *
+ * Split into a helper so {@link createOrbitService} stays under the cognitive
+ * complexity threshold enforced by ESLint.
+ */
+function findPasses(sat: Satellite, observer: ObserverLocation, from: Date, hours: number): Pass[] {
+  const passes: Pass[] = [];
+  const totalSamples = Math.ceil((hours * 3600) / PASS_STEP_SECONDS);
+  let open: OpenPass | null = null;
+
+  for (let i = 0; i <= totalSamples; i++) {
+    const t = new Date(from.getTime() + i * PASS_STEP_SECONDS * 1000);
+    const el = elevationDeg(sat, observer, t);
+
+    if (el > 0) {
+      open = extendPass(open, t, el);
+    } else if (open) {
+      passes.push(closePass(open, t, sat.noradId));
+      open = null;
+    }
+  }
+
+  if (open) {
+    // Pass was still above horizon at the window edge — close it at the last
+    // sample we have, even though the satellite hasn't actually set yet.
+    const tail = new Date(from.getTime() + totalSamples * PASS_STEP_SECONDS * 1000);
+    passes.push(closePass(open, tail, sat.noradId));
+  }
+  return passes;
+}
+
+/** Mutable in-progress pass — never escapes this module. */
+interface OpenPass {
+  start: Date;
+  maxElevationDeg: number;
+  maxElevationAt: Date;
+}
+
+function extendPass(open: OpenPass | null, t: Date, el: number): OpenPass {
+  if (!open) return { start: t, maxElevationDeg: el, maxElevationAt: t };
+  if (el > open.maxElevationDeg) {
+    return { start: open.start, maxElevationDeg: el, maxElevationAt: t };
+  }
+  return open;
+}
+
+function closePass(open: OpenPass, end: Date, satelliteId: number): Pass {
+  return {
+    satelliteId,
+    startTime: open.start.toISOString(),
+    endTime: end.toISOString(),
+    maxElevationDeg: Math.min(open.maxElevationDeg, 90),
+    maxElevationAt: open.maxElevationAt.toISOString(),
+    durationSeconds: Math.max(1, Math.round((end.getTime() - open.start.getTime()) / 1000)),
+  };
 }

@@ -8,7 +8,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { GroundTrackSchema, PositionSchema, SatelliteSchema } from '@orbit-ctrl/types';
+import { GroundTrackSchema, PassSchema, PositionSchema, SatelliteSchema } from '@orbit-ctrl/types';
 import type { SatelliteController } from '../controllers/satellite.controller.js';
 
 export interface SatelliteRouteOptions {
@@ -28,6 +28,19 @@ const TimeQuerySchema = z.object({
 /** `?periodMin=...` query — clamped to a sensible range so we don't propagate weeks ahead. */
 const TrackQuerySchema = z.object({
   periodMin: z.coerce.number().positive().max(720).optional(),
+});
+
+/**
+ * `?lat=...&lon=...&hours=...` query for pass prediction.
+ *
+ * `hours` is capped at 72 to match {@link PASS_MAX_HOURS} on the service.
+ * `altMeters` defaults to sea-level if omitted.
+ */
+const PassesQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+  hours: z.coerce.number().positive().max(72).optional(),
+  altMeters: z.coerce.number().optional(),
 });
 
 /**
@@ -85,5 +98,17 @@ export const satelliteRoute: FastifyPluginAsync<SatelliteRouteOptions> = async (
       },
     },
     opts.controller.getGroundTrack,
+  );
+
+  f.get(
+    '/satellites/:id/passes',
+    {
+      schema: {
+        params: IdParamSchema,
+        querystring: PassesQuerySchema,
+        response: { 200: z.array(PassSchema) },
+      },
+    },
+    opts.controller.getPasses,
   );
 };

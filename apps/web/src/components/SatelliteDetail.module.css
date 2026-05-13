@@ -1,11 +1,12 @@
 .panel {
-  width: 280px;
+  width: 320px;
   padding: var(--space-xl);
   border-left: 1px solid var(--color-border-tertiary);
   background: var(--color-bg-secondary);
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
+  overflow-y: auto;
 }
 
 .header {
@@ -65,4 +66,75 @@
   font-size: 13px;
   color: var(--color-text-tertiary);
   margin: 0;
+}
+
+.passes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.passesTitle {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.observer {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.passesEmpty {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.passList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.passItem {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-md);
+  align-items: baseline;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-primary);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px dashed var(--color-border-tertiary);
+}
+
+.passWhen {
+  color: var(--color-text-primary);
+}
+
+.passDuration {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.passElev {
+  color: var(--color-accent);
+  font-weight: 500;
+  min-width: 36px;
+  text-align: right;
 }

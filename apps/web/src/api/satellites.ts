@@ -5,7 +5,7 @@
  * Shapes are imported from `@orbit-ctrl/types`, the single source of truth
  * shared with the backend.
  */
-import type { GroundTrack, Position, Satellite } from '@orbit-ctrl/types';
+import type { GroundTrack, ObserverLocation, Pass, Position, Satellite } from '@orbit-ctrl/types';
 
 /** Fetch the curated list of tracked satellites (one-time on app boot). */
 export async function fetchSatellites(): Promise<Satellite[]> {
@@ -35,4 +35,27 @@ export async function fetchGroundTrack(noradId: number, periodMin?: number): Pro
   const res = await fetch(`/api/satellites/${noradId}/track${qs}`);
   if (!res.ok) throw new Error(`GET /api/satellites/${noradId}/track failed: ${res.status}`);
   return (await res.json()) as GroundTrack;
+}
+
+/**
+ * Fetch the predicted passes of one satellite over a ground observer.
+ *
+ * @param noradId  - NORAD ID from the curated set.
+ * @param observer - Observer location (lat/lon degrees, optional altMeters).
+ * @param hours    - Forward window in hours. Backend caps at 72.
+ */
+export async function fetchPasses(
+  noradId: number,
+  observer: ObserverLocation,
+  hours: number,
+): Promise<Pass[]> {
+  const params = new URLSearchParams({
+    lat: String(observer.lat),
+    lon: String(observer.lon),
+    hours: String(hours),
+  });
+  if (observer.altMeters !== undefined) params.set('altMeters', String(observer.altMeters));
+  const res = await fetch(`/api/satellites/${noradId}/passes?${params.toString()}`);
+  if (!res.ok) throw new Error(`GET /api/satellites/${noradId}/passes failed: ${res.status}`);
+  return (await res.json()) as Pass[];
 }

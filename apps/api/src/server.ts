@@ -23,11 +23,16 @@ import { createHealthService } from './services/health.service.js';
 import { createHealthController } from './controllers/health.controller.js';
 import { healthRoute } from './routes/health.route.js';
 import { createCelestrakClient } from './clients/celestrak.client.js';
+import { createNoaaSwpcClient } from './clients/noaa-swpc.client.js';
 import { createTLERepository } from './repositories/tle.repository.js';
+import { createWeatherRepository } from './repositories/weather.repository.js';
 import { createOrbitService } from './services/orbit.service.js';
 import { createSatelliteService } from './services/satellite.service.js';
+import { createWeatherService } from './services/weather.service.js';
 import { createSatelliteController } from './controllers/satellite.controller.js';
+import { createWeatherController } from './controllers/weather.controller.js';
 import { satelliteRoute } from './routes/satellite.route.js';
+import { weatherRoute } from './routes/weather.route.js';
 
 /** Version reported by `/health`. Bumped in lockstep with `package.json`. */
 const API_VERSION = '0.1.0';
@@ -96,9 +101,22 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
   const satelliteController = createSatelliteController(satelliteService);
 
+  const noaaClient = createNoaaSwpcClient();
+  const weatherRepository = createWeatherRepository();
+  const weatherService = createWeatherService({
+    noaa: noaaClient,
+    repository: weatherRepository,
+    logger: {
+      info: (msg) => server.log.info(msg),
+      warn: (msg) => server.log.warn(msg),
+    },
+  });
+  const weatherController = createWeatherController(weatherService);
+
   // ── Routes ───────────────────────────────────────────────────────────────
   await server.register(healthRoute, { controller: healthController });
   await server.register(satelliteRoute, { controller: satelliteController });
+  await server.register(weatherRoute, { controller: weatherController });
 
   // ── Phase 0 WebSocket smoke test ────────────────────────────────────────
   // Replaced in Phase 3 by `/ws/telemetry` and `/ws/alerts` route modules.

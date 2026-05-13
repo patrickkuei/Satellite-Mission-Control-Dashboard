@@ -8,8 +8,11 @@
  *   - `GET /satellites/:id/track`             — forward ground track for path rendering
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { GroundTrack, Position, Satellite } from '@orbit-ctrl/types';
+import type { GroundTrack, Pass, Position, Satellite } from '@orbit-ctrl/types';
 import { SatelliteNotFoundError, type SatelliteService } from '../services/satellite.service.js';
+
+/** Default pass-prediction window (in hours) when the client doesn't specify. */
+const DEFAULT_PASS_HOURS = 24;
 
 /** Public surface of the satellite controller. */
 export interface SatelliteController {
@@ -26,6 +29,13 @@ export interface SatelliteController {
     req: FastifyRequest<{ Params: { id: number }; Querystring: { periodMin?: number } }>,
     reply: FastifyReply,
   ): Promise<GroundTrack>;
+  getPasses(
+    req: FastifyRequest<{
+      Params: { id: number };
+      Querystring: { lat: number; lon: number; hours?: number; altMeters?: number };
+    }>,
+    reply: FastifyReply,
+  ): Promise<Pass[]>;
 }
 
 /**
@@ -67,6 +77,15 @@ export function createSatelliteController(service: SatelliteService): SatelliteC
     },
     async getGroundTrack(req, reply) {
       return handleNotFound(reply, () => service.groundTrack(req.params.id, req.query.periodMin));
+    },
+    async getPasses(req, reply) {
+      return handleNotFound(reply, () =>
+        service.passesOf(
+          req.params.id,
+          { lat: req.query.lat, lon: req.query.lon, altMeters: req.query.altMeters },
+          req.query.hours ?? DEFAULT_PASS_HOURS,
+        ),
+      );
     },
   };
 }

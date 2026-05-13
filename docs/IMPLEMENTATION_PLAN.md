@@ -347,11 +347,11 @@
 
 ### Deliverable
 
-- [ ] Space weather status displayed in header (Kp index + summary)
-- [ ] Globe shows auroral zones when geomagnetic storm active
-- [ ] User location marked on globe
-- [ ] Clicking satellite shows detail panel with next pass time
-- [ ] "Passes in next 2 hours" list populated correctly
+- [x] Space weather status displayed in header (Kp index + summary)
+- [x] Globe shows auroral zones when geomagnetic storm active
+- [x] User location marked on globe
+- [x] Clicking satellite shows detail panel with next pass time
+- [x] "Passes in next 2 hours" list populated correctly
 
 **Time:** 10-14 hours
 

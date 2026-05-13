@@ -1,0 +1,58 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.04em;
+}
+
+.kp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2xs);
+}
+
+.kpLabel {
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.kpValue {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.summary {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+}
+
+.summaryQuiet {
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--color-success);
+}
+
+.summaryUnsettled {
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--color-warning);
+}
+
+.summaryActive {
+  background: rgba(255, 107, 53, 0.16);
+  color: var(--color-accent);
+}
+
+.summaryStorm {
+  background: rgba(239, 68, 68, 0.16);
+  color: var(--color-danger);
+}
+
+.flare {
+  font-family: var(--font-mono);
+  color: var(--color-text-tertiary);
+}

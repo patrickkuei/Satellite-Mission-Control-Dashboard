@@ -1,28 +1,36 @@
 /**
  * Root component — layout composition only.
  *
- * Phase 1 layout: header strip on top, globe filling the centre, selected-
- * satellite rail on the right. All data flow lives in hooks; this file only
- * wires them to presentational components.
+ * Phase 2 layout: header strip on top (status + live space weather), globe
+ * filling the centre, selected-satellite rail on the right with the live
+ * detail card + upcoming passes over the user's observer location. All data
+ * flow lives in hooks; this file only wires them to presentational components.
  */
 import { useMemo } from 'react';
 import StatusBadge from './components/StatusBadge';
+import { SpaceWeatherBadge } from './components/SpaceWeatherBadge';
 import { Globe, type SatelliteWithPosition } from './components/Globe';
 import { SatelliteDetail } from './components/SatelliteDetail';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSatellites } from './hooks/useSatellites';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
 import { useGroundTrack } from './hooks/useGroundTrack';
+import { useSpaceWeather } from './hooks/useSpaceWeather';
+import { usePasses } from './hooks/usePasses';
 import { useSelectedSatellite } from './stores/selectedSatellite';
+import { useObserverLocation } from './stores/observerLocation';
 import styles from './App.module.css';
 
 export function App(): JSX.Element {
   const { data: health, error: healthError } = useApiHealth();
   const { data: satellites = [] } = useSatellites();
   const { data: positions = [] } = useSatellitePositions();
+  const { data: weather } = useSpaceWeather();
   const selectedId = useSelectedSatellite((s) => s.selectedId);
   const setSelected = useSelectedSatellite((s) => s.setSelected);
+  const observer = useObserverLocation((s) => s.location);
   const { data: groundTrack } = useGroundTrack(selectedId);
+  const { data: passes = [], isFetching: passesLoading } = usePasses(selectedId, observer);
 
   // Join satellites + positions into the shape Globe expects.
   const pairs = useMemo<SatelliteWithPosition[]>(
@@ -42,9 +50,12 @@ export function App(): JSX.Element {
       <header className={styles.header}>
         <span className={styles.brand}>orbit.ctrl</span>
         <span className={styles.center}>
-          tracking <strong>{pairs.length}</strong> satellites · phase 1
+          tracking <strong>{pairs.length}</strong> satellites · phase 2
         </span>
-        <StatusBadge status={status} />
+        <span className={styles.headerRight}>
+          <SpaceWeatherBadge weather={weather ?? null} />
+          <StatusBadge status={status} />
+        </span>
       </header>
       <section className={styles.stage}>
         <Globe
@@ -52,8 +63,15 @@ export function App(): JSX.Element {
           groundTrack={groundTrack ?? null}
           selectedId={selectedId}
           onSelect={setSelected}
+          observer={observer}
+          kpIndex={weather?.kpIndex ?? null}
         />
-        <SatelliteDetail data={selectedPair} />
+        <SatelliteDetail
+          data={selectedPair}
+          passes={passes}
+          observer={observer}
+          passesLoading={passesLoading}
+        />
       </section>
     </main>
   );
