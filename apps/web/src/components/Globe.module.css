@@ -1,0 +1,16 @@
+.host {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 107, 53, 0.05), transparent 60%),
+    var(--color-bg-primary);
+}
+
+.host > * {
+  flex: 1;
+  min-height: 0;
+}

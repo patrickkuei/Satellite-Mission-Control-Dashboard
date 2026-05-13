@@ -17,6 +17,7 @@ export * from './position.js';
 export * from './telemetry.js';
 export * from './anomaly.js';
 export * from './pass.js';
+export * from './ground-track.js';
 export * from './observer.js';
 export * from './weather.js';
 export * from './ws.js';

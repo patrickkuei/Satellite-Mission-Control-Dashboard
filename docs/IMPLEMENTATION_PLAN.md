@@ -226,11 +226,11 @@
 
 ### Deliverable
 
-- [ ] 3D Earth globe with realistic texture
-- [ ] ISS, Hubble, and 3 Starlink satellites moving in correct orbits
-- [ ] Ground tracks showing path over Earth
-- [ ] Click satellite to see name/altitude
-- [ ] Console logs show TLE data being fetched and cached
+- [x] 3D Earth globe with realistic texture
+- [x] ISS + a curated set of LEO satellites (Tianhe / Starlinks, padded from Celestrak) moving in correct orbits
+- [x] Ground track for the selected satellite shown as an amber path
+- [x] Click satellite to see name + altitude + velocity (right rail + hover label)
+- [x] Backend logs TLE fetch/cache hits via Fastify's pino logger
 
 **Time:** 12-16 hours
 

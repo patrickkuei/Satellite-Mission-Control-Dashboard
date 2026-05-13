@@ -37,8 +37,8 @@ Thumbs.db
 .turbo/
 
 # Data caches (runtime)
-data/tle-cache.json
-data/*.cache
+**/data/tle-cache.json
+**/data/*.cache
 
 # Coverage
 coverage/

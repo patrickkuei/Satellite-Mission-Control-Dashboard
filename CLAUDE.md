@@ -15,7 +15,8 @@ Read before non-trivial decisions. These are the spec — surface conflicts, don
 ## Status
 
 - **Phase 0 ✅ done** — monorepo scaffolded (`apps/{web,api}`, `packages/{types,tools,mcp-server}`, pnpm workspaces, TS strict, husky hooks live).
-- **Currently: Phase 1** — Globe + TLE Data. See `docs/IMPLEMENTATION_PLAN.md` for per-phase deliverable checkboxes; that file is the source of truth for what's done vs. pending within a phase. Update this block when a phase flips.
+- **Phase 1 ✅ done** — Celestrak TLE client + 24 h JSON cache, `satellite.js` SGP4 propagation, `/satellites` + `/satellites/positions` + `/satellites/:id/position` + `/satellites/:id/track` routes, `react-globe.gl` frontend with TanStack Query 1 Hz polling, Zustand selection store, ground-track path, detail rail.
+- **Currently: Phase 2** — Space Weather + Pass Prediction. See `docs/IMPLEMENTATION_PLAN.md` for per-phase deliverable checkboxes; that file is the source of truth for what's done vs. pending within a phase. Update this block when a phase flips.
 
 ## Planned structure
 
