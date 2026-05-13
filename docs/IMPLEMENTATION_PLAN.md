@@ -101,10 +101,10 @@
 
 ### Deliverable
 
-- `pnpm dev` starts both frontend (localhost:5173) and backend (localhost:3001)
-- TypeScript compiles without errors
-- Shared types imported correctly across packages
-- Git repo initialized with proper .gitignore
+- [x] `pnpm dev` starts both frontend (localhost:5173) and backend (localhost:3001)
+- [x] TypeScript compiles without errors
+- [x] Shared types imported correctly across packages
+- [x] Git repo initialized with proper .gitignore
 
 **Time:** 6-8 hours
 
@@ -213,11 +213,11 @@
 
 ### Deliverable
 
-- 3D Earth globe with realistic texture
-- ISS, Hubble, and 3 Starlink satellites moving in correct orbits
-- Ground tracks showing path over Earth
-- Click satellite to see name/altitude
-- Console logs show TLE data being fetched and cached
+- [ ] 3D Earth globe with realistic texture
+- [ ] ISS, Hubble, and 3 Starlink satellites moving in correct orbits
+- [ ] Ground tracks showing path over Earth
+- [ ] Click satellite to see name/altitude
+- [ ] Console logs show TLE data being fetched and cached
 
 **Time:** 12-16 hours
 
@@ -254,6 +254,7 @@
 
 2. **Pass prediction (backend)**
    - Add to orbit service:
+
      ```typescript
      function predictPasses(
        satellite: Satellite,
@@ -277,6 +278,7 @@
        return passes;
      }
      ```
+
    - Endpoint:
      ```typescript
      fastify.get('/satellites/:id/passes', async (req) => {
@@ -332,11 +334,11 @@
 
 ### Deliverable
 
-- Space weather status displayed in header (Kp index + summary)
-- Globe shows auroral zones when geomagnetic storm active
-- User location marked on globe
-- Clicking satellite shows detail panel with next pass time
-- "Passes in next 2 hours" list populated correctly
+- [ ] Space weather status displayed in header (Kp index + summary)
+- [ ] Globe shows auroral zones when geomagnetic storm active
+- [ ] User location marked on globe
+- [ ] Clicking satellite shows detail panel with next pass time
+- [ ] "Passes in next 2 hours" list populated correctly
 
 **Time:** 10-14 hours
 
@@ -350,6 +352,7 @@
 
 1. **Telemetry Simulator (backend)**
    - `packages/tools/src/telemetry-simulator.ts`:
+
      ```typescript
      class TelemetrySimulator {
        generateTelemetry(satellite: Satellite, time: Date): Telemetry {
@@ -412,6 +415,7 @@
 
 3. **Anomaly Detection Engine (backend)**
    - `packages/tools/src/anomaly-engine.ts`:
+
      ```typescript
      class AnomalyEngine {
        private history: Map<number, Telemetry[]> = new Map();
@@ -545,12 +549,12 @@
 
 ### Deliverable
 
-- Real-time telemetry streaming from backend to frontend at 1Hz
-- Telemetry strip showing voltage, temperature, attitude with sparklines
-- Telemetry values change realistically (eclipse cycles, thermal variations)
-- Anomalies detected automatically (Z-score threshold)
-- Alerts appear in bottom log with severity color-coding
-- Visual confirmation: inject manual anomaly, see alert appear within 3 seconds
+- [ ] Real-time telemetry streaming from backend to frontend at 1Hz
+- [ ] Telemetry strip showing voltage, temperature, attitude with sparklines
+- [ ] Telemetry values change realistically (eclipse cycles, thermal variations)
+- [ ] Anomalies detected automatically (Z-score threshold)
+- [ ] Alerts appear in bottom log with severity color-coding
+- [ ] Visual confirmation: inject manual anomaly, see alert appear within 3 seconds
 
 **Time:** 14-18 hours
 
@@ -781,6 +785,7 @@
 
 4. **Agent endpoint (backend)**
    - `apps/api/src/routes/agent.ts`:
+
      ```typescript
      fastify.post('/agent/chat', async (req, reply) => {
        const { message } = req.body;
@@ -801,6 +806,7 @@
 
 5. **Agent Chat UI (frontend)**
    - `components/AgentChatPanel.tsx`:
+
      ```typescript
      export function AgentChatPanel() {
        const [messages, setMessages] = useState<Message[]>([]);
@@ -875,14 +881,14 @@
 
 ### Deliverable
 
-- `LLMProvider` interface + Gemini adapter (primary) + Anthropic adapter (secondary), selected via `LLM_PROVIDER` env var.
-- `ToolBroker` with Ajv schema validation; tool errors surface as `tool_result` with `isError: true` rather than throwing.
-- Agent orchestrator with conversation loop, tool dispatch, and a 3-strike cap on consecutive tool errors.
-- Transport-level retry (`withBackoff`) inside each adapter, with unit tests for 429/5xx/timeout behavior.
-- `toGeminiSchema()` normalizer with one unit test per stripped JSON Schema feature.
-- Agent chat panel in right sidebar; response streams in real-time; tool calls visible as `→ Calling predict_passes...`.
-- Multi-hop test cases pass on **both** providers — proves the abstraction holds.
-- Graceful degradation: missing API key → clear startup error; rate-limited mid-stream → retry transparently, then surface a friendly error if still failing.
+- [ ] `LLMProvider` interface + Gemini adapter (primary) + Anthropic adapter (secondary), selected via `LLM_PROVIDER` env var.
+- [ ] `ToolBroker` with Ajv schema validation; tool errors surface as `tool_result` with `isError: true` rather than throwing.
+- [ ] Agent orchestrator with conversation loop, tool dispatch, and a 3-strike cap on consecutive tool errors.
+- [ ] Transport-level retry (`withBackoff`) inside each adapter, with unit tests for 429/5xx/timeout behavior.
+- [ ] `toGeminiSchema()` normalizer with one unit test per stripped JSON Schema feature.
+- [ ] Agent chat panel in right sidebar; response streams in real-time; tool calls visible as `→ Calling predict_passes...`.
+- [ ] Multi-hop test cases pass on **both** providers — proves the abstraction holds.
+- [ ] Graceful degradation: missing API key → clear startup error; rate-limited mid-stream → retry transparently, then surface a friendly error if still failing.
 
 **Time:** 18-24 hours (up from 14-18 due to dual-adapter + abstraction layer)
 
@@ -1037,11 +1043,11 @@
 
 ### Deliverable
 
-- MCP server package built and globally linkable
-- Claude Desktop can connect to server successfully
-- External queries via Claude Desktop return correct data
-- Demo video uploaded and linked in README
-- README documentation explains setup for users
+- [ ] MCP server package built and globally linkable
+- [ ] Claude Desktop can connect to server successfully
+- [ ] External queries via Claude Desktop return correct data
+- [ ] Demo video uploaded and linked in README
+- [ ] README documentation explains setup for users
 
 **Time:** 10-14 hours
 
@@ -1073,13 +1079,16 @@
 
 3. **Deployment**
    - Frontend (Vercel):
+
      ```bash
      cd apps/web
      vercel --prod
      ```
 
      - Set env vars: `VITE_API_URL=https://api.orbit-ctrl.fly.dev`
+
    - Backend (Fly.io):
+
      ```bash
      cd apps/api
      fly launch
@@ -1198,12 +1207,12 @@
 
 ### Deliverable
 
-- Live URL: https://orbit-ctrl.vercel.app
-- GitHub repo: public, with comprehensive README
-- Demo video: 90 seconds, uploaded to YouTube
-- Case study: published on Medium/Dev.to
-- All screenshots captured and optimized
-- MCP server documented and testable
+- [ ] Live URL: https://orbit-ctrl.vercel.app
+- [ ] GitHub repo: public, with comprehensive README
+- [ ] Demo video: 90 seconds, uploaded to YouTube
+- [ ] Case study: published on Medium/Dev.to
+- [ ] All screenshots captured and optimized
+- [ ] MCP server documented and testable
 
 **Time:** 12-16 hours
 

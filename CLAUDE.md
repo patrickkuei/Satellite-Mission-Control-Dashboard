@@ -14,7 +14,8 @@ Read before non-trivial decisions. These are the spec — surface conflicts, don
 
 ## Status
 
-Pre-code: docs only. Next is Phase 0 (monorepo scaffolding).
+- **Phase 0 ✅ done** — monorepo scaffolded (`apps/{web,api}`, `packages/{types,tools,mcp-server}`, pnpm workspaces, TS strict, husky hooks live).
+- **Currently: Phase 1** — Globe + TLE Data. See `docs/IMPLEMENTATION_PLAN.md` for per-phase deliverable checkboxes; that file is the source of truth for what's done vs. pending within a phase. Update this block when a phase flips.
 
 ## Planned structure
 
