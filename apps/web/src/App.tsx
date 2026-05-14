@@ -11,12 +11,15 @@ import StatusBadge from './components/StatusBadge';
 import { SpaceWeatherBadge } from './components/SpaceWeatherBadge';
 import { Globe, type SatelliteWithPosition } from './components/Globe';
 import { SatelliteDetail } from './components/SatelliteDetail';
+import { TelemetryStrip } from './components/TelemetryStrip';
+import { AlertLog } from './components/AlertLog';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSatellites } from './hooks/useSatellites';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
 import { useGroundTrack } from './hooks/useGroundTrack';
 import { useSpaceWeather } from './hooks/useSpaceWeather';
 import { usePasses } from './hooks/usePasses';
+import { useTelemetryStream } from './hooks/useTelemetryStream';
 import { useSelectedSatellite } from './stores/selectedSatellite';
 import { useObserverLocation } from './stores/observerLocation';
 import styles from './App.module.css';
@@ -31,6 +34,7 @@ export function App(): JSX.Element {
   const observer = useObserverLocation((s) => s.location);
   const { data: groundTrack } = useGroundTrack(selectedId);
   const { data: passes = [], isFetching: passesLoading } = usePasses(selectedId, observer);
+  const { latestById, historyById, alerts } = useTelemetryStream();
 
   // Join satellites + positions into the shape Globe expects.
   const pairs = useMemo<SatelliteWithPosition[]>(
@@ -43,6 +47,11 @@ export function App(): JSX.Element {
     [pairs, selectedId],
   );
 
+  const nameById = useMemo(() => new Map(satellites.map((s) => [s.noradId, s.name])), [satellites]);
+
+  const selectedSample = selectedId !== null ? (latestById.get(selectedId) ?? null) : null;
+  const selectedHistory = selectedId !== null ? (historyById.get(selectedId) ?? []) : [];
+
   const status = healthError ? 'offline' : (health?.status ?? null);
 
   return (
@@ -50,7 +59,7 @@ export function App(): JSX.Element {
       <header className={styles.header}>
         <span className={styles.brand}>orbit.ctrl</span>
         <span className={styles.center}>
-          tracking <strong>{pairs.length}</strong> satellites · phase 2
+          tracking <strong>{pairs.length}</strong> satellites · phase 3
         </span>
         <span className={styles.headerRight}>
           <SpaceWeatherBadge weather={weather ?? null} />
@@ -73,6 +82,8 @@ export function App(): JSX.Element {
           passesLoading={passesLoading}
         />
       </section>
+      <TelemetryStrip sample={selectedSample} history={selectedHistory} />
+      <AlertLog alerts={alerts} nameById={nameById} selectedId={selectedId} />
     </main>
   );
 }

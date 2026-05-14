@@ -1,0 +1,130 @@
+.log {
+  flex: 0 0 160px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--color-border-tertiary);
+  background: var(--color-bg-secondary);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-left: var(--space-sm);
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.toggle {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background 80ms,
+    color 80ms,
+    border-color 80ms;
+}
+
+.toggle:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-primary);
+}
+
+.toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toggle.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #1a1a1a;
+}
+
+.empty {
+  padding: var(--space-lg);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 80px 140px 1fr auto;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-xs) var(--space-lg);
+  border-left: 3px solid transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border-tertiary);
+}
+
+.warn {
+  border-left-color: var(--color-warning);
+}
+
+.alert {
+  border-left-color: var(--color-danger);
+}
+
+.time {
+  color: var(--color-text-tertiary);
+}
+
+.sat {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desc {
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zscore {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}

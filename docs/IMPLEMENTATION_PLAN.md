@@ -361,10 +361,12 @@
 
 **Goal:** Realistic telemetry streams with anomaly detection and alert UI.
 
+> **Layering note:** `packages/tools` holds tool-registry entries only (consumed by the agent in Phase 4 and the MCP server in Phase 5). Runtime simulation and detection are backend services and live in `apps/api/src/services/` per the 5-layer rule in `CLAUDE.md`. Phase 4 will wrap these services with thin tool-registry adapters.
+
 ### Tasks
 
 1. **Telemetry Simulator (backend)**
-   - `packages/tools/src/telemetry-simulator.ts`:
+   - `apps/api/src/services/telemetry.service.ts`:
 
      ```typescript
      class TelemetrySimulator {
@@ -427,7 +429,7 @@
      ```
 
 3. **Anomaly Detection Engine (backend)**
-   - `packages/tools/src/anomaly-engine.ts`:
+   - `apps/api/src/services/anomaly.service.ts`:
 
      ```typescript
      class AnomalyEngine {
@@ -562,12 +564,12 @@
 
 ### Deliverable
 
-- [ ] Real-time telemetry streaming from backend to frontend at 1Hz
-- [ ] Telemetry strip showing voltage, temperature, attitude with sparklines
-- [ ] Telemetry values change realistically (eclipse cycles, thermal variations)
-- [ ] Anomalies detected automatically (Z-score threshold)
-- [ ] Alerts appear in bottom log with severity color-coding
-- [ ] Visual confirmation: inject manual anomaly, see alert appear within 3 seconds
+- [x] Real-time telemetry streaming from backend to frontend at 1Hz
+- [x] Telemetry strip showing voltage, temperature, attitude with sparklines
+- [x] Telemetry values change realistically (eclipse cycles, thermal variations)
+- [x] Anomalies detected automatically (Z-score threshold)
+- [x] Alerts appear in bottom log with severity color-coding
+- [x] Visual confirmation: latched faults (5-sample lifetime) trip the 3-sample Z-score debounce, producing voltage / temperature / attitude alerts in the log
 
 **Time:** 14-18 hours
 

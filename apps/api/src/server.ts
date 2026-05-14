@@ -29,10 +29,13 @@ import { createWeatherRepository } from './repositories/weather.repository.js';
 import { createOrbitService } from './services/orbit.service.js';
 import { createSatelliteService } from './services/satellite.service.js';
 import { createWeatherService } from './services/weather.service.js';
+import { createTelemetryService } from './services/telemetry.service.js';
+import { createAnomalyService } from './services/anomaly.service.js';
 import { createSatelliteController } from './controllers/satellite.controller.js';
 import { createWeatherController } from './controllers/weather.controller.js';
 import { satelliteRoute } from './routes/satellite.route.js';
 import { weatherRoute } from './routes/weather.route.js';
+import { telemetryRoute } from './routes/telemetry.route.js';
 
 /** Version reported by `/health`. Bumped in lockstep with `package.json`. */
 const API_VERSION = '0.1.0';
@@ -113,18 +116,19 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
   const weatherController = createWeatherController(weatherService);
 
+  const telemetryService = createTelemetryService({
+    listSatellites: () => satelliteService.list(),
+    orbit: orbitService,
+  });
+  const anomalyService = createAnomalyService();
+
   // ── Routes ───────────────────────────────────────────────────────────────
   await server.register(healthRoute, { controller: healthController });
   await server.register(satelliteRoute, { controller: satelliteController });
   await server.register(weatherRoute, { controller: weatherController });
-
-  // ── Phase 0 WebSocket smoke test ────────────────────────────────────────
-  // Replaced in Phase 3 by `/ws/telemetry` and `/ws/alerts` route modules.
-  server.get('/ws/ping', { websocket: true }, (socket) => {
-    socket.send(JSON.stringify({ type: 'hello', message: 'orbit-ctrl ws online' }));
-    socket.on('message', (raw: Buffer) => {
-      socket.send(JSON.stringify({ type: 'echo', message: raw.toString() }));
-    });
+  await server.register(telemetryRoute, {
+    telemetry: telemetryService,
+    anomaly: anomalyService,
   });
 
   return server;
