@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-import { toolRegistry } from '@orbit-ctrl/tools';
+import { toolDefinitions } from '@orbit-ctrl/tools';
 
 /**
  * Entry point. Prints the registered tools and exits. Replaced in Phase 5
@@ -16,7 +16,7 @@ import { toolRegistry } from '@orbit-ctrl/tools';
  */
 function main(): void {
   console.warn(
-    `[orbit-ctrl-mcp] Phase 0 stub. ${toolRegistry.length} tools registered. ` +
+    `[orbit-ctrl-mcp] Phase 0 stub. ${toolDefinitions.length} tools registered. ` +
       `Full implementation lands in Phase 5.`,
   );
 }

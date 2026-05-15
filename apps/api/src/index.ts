@@ -18,7 +18,12 @@
  * # → { "status": "ok", "service": "orbit-ctrl-api", "version": "0.1.0" }
  * ```
  */
+import { loadDotenv } from './config/dotenv.js';
 import { buildServer } from './server.js';
+
+// Populate process.env from apps/api/.env before anything reads it.
+// Keeps Phase 4's `GEMINI_API_KEY` / `LLM_PROVIDER` setup out-of-band.
+loadDotenv();
 
 const PORT = Number(process.env.PORT ?? 3001);
 const HOST = process.env.HOST ?? '0.0.0.0';

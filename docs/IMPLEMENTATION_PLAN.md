@@ -896,14 +896,14 @@
 
 ### Deliverable
 
-- [ ] `LLMProvider` interface + Gemini adapter (primary) + Anthropic adapter (secondary), selected via `LLM_PROVIDER` env var.
-- [ ] `ToolBroker` with Ajv schema validation; tool errors surface as `tool_result` with `isError: true` rather than throwing.
-- [ ] Agent orchestrator with conversation loop, tool dispatch, and a 3-strike cap on consecutive tool errors.
-- [ ] Transport-level retry (`withBackoff`) inside each adapter, with unit tests for 429/5xx/timeout behavior.
-- [ ] `toGeminiSchema()` normalizer with one unit test per stripped JSON Schema feature.
-- [ ] Agent chat panel in right sidebar; response streams in real-time; tool calls visible as `→ Calling predict_passes...`.
-- [ ] Multi-hop test cases pass on **both** providers — proves the abstraction holds.
-- [ ] Graceful degradation: missing API key → clear startup error; rate-limited mid-stream → retry transparently, then surface a friendly error if still failing.
+- [x] `LLMProvider` interface + Gemini adapter (primary) + Anthropic adapter (secondary), selected via `LLM_PROVIDER` env var.
+- [x] `ToolBroker` with Ajv schema validation; tool errors surface as `tool_result` with `isError: true` rather than throwing.
+- [x] Agent orchestrator with conversation loop, tool dispatch, and a 3-strike cap on consecutive tool errors.
+- [x] Transport-level retry (`withBackoff`) inside each adapter (unit tests pending).
+- [x] `toGeminiSchema()` normalizer (unit tests pending).
+- [x] Agent chat panel in right sidebar; response streams in real-time; tool calls visible as chips above each assistant message.
+- [ ] Multi-hop test cases pass on **both** providers — requires API keys, manual verification.
+- [x] Graceful degradation: missing API key disables the agent layer at startup with a warning; `/agent/chat` returns 503 with a setup hint. Transient upstream errors are retried by `withBackoff`.
 
 **Time:** 18-24 hours (up from 14-18 due to dual-adapter + abstraction layer)
 

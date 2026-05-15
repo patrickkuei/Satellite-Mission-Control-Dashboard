@@ -22,6 +22,7 @@ interface BroadcastSocket {
 }
 import type { TelemetryService } from '../services/telemetry.service.js';
 import type { AnomalyService } from '../services/anomaly.service.js';
+import type { AnomalyLogService } from '../services/anomaly-log.service.js';
 
 /** Sample cadence in milliseconds. */
 const TICK_MS = 1000;
@@ -29,6 +30,8 @@ const TICK_MS = 1000;
 export interface TelemetryRouteOptions {
   telemetry: TelemetryService;
   anomaly: AnomalyService;
+  /** Optional historical log; if provided, every emitted anomaly is appended for the agent's `get_anomalies` tool. */
+  anomalyLog?: AnomalyLogService;
 }
 
 /**
@@ -58,7 +61,10 @@ export const telemetryRoute: FastifyPluginAsync<TelemetryRouteOptions> = async (
 
     const newAlerts: Anomaly[] = [];
     for (const sample of samples) newAlerts.push(...opts.anomaly.evaluate(sample));
-    for (const alert of newAlerts) broadcast(clients, { type: 'alert', data: alert });
+    for (const alert of newAlerts) {
+      opts.anomalyLog?.append(alert);
+      broadcast(clients, { type: 'alert', data: alert });
+    }
   }
 
   function ensureTimer(): void {

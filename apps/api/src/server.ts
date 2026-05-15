@@ -31,11 +31,19 @@ import { createSatelliteService } from './services/satellite.service.js';
 import { createWeatherService } from './services/weather.service.js';
 import { createTelemetryService } from './services/telemetry.service.js';
 import { createAnomalyService } from './services/anomaly.service.js';
+import { createAnomalyLogService } from './services/anomaly-log.service.js';
+import { createAgentToolRegistry } from './services/agent-tools.service.js';
+import { createToolBroker } from './services/tool-broker.js';
+import { createAgentService } from './services/agent.service.js';
+import { createGeminiProvider } from './clients/gemini.client.js';
+import { createAnthropicProvider } from './clients/anthropic.client.js';
+import type { LLMProvider } from './clients/llm-provider.js';
 import { createSatelliteController } from './controllers/satellite.controller.js';
 import { createWeatherController } from './controllers/weather.controller.js';
 import { satelliteRoute } from './routes/satellite.route.js';
 import { weatherRoute } from './routes/weather.route.js';
 import { telemetryRoute } from './routes/telemetry.route.js';
+import { agentRoute } from './routes/agent.route.js';
 
 /** Version reported by `/health`. Bumped in lockstep with `package.json`. */
 const API_VERSION = '0.1.0';
@@ -121,6 +129,39 @@ export async function buildServer(): Promise<FastifyInstance> {
     orbit: orbitService,
   });
   const anomalyService = createAnomalyService();
+  const anomalyLogService = createAnomalyLogService();
+
+  // ── Agent layer (Phase 4) ────────────────────────────────────────────────
+  // Provider selection is environment-driven. The agent layer is optional —
+  // if no API key is configured, the route registers a stub that returns 503
+  // rather than crashing the server (so the rest of the dashboard still runs).
+  const llmProvider = buildLLMProvider(server.log);
+  if (llmProvider) {
+    const agentTools = createAgentToolRegistry({
+      satellite: satelliteService,
+      weather: weatherService,
+      telemetry: telemetryService,
+      orbit: orbitService,
+      anomalyLog: anomalyLogService,
+    });
+    const toolBroker = createToolBroker(agentTools);
+    const agentService = createAgentService({
+      llm: llmProvider,
+      broker: toolBroker,
+      tools: agentTools,
+    });
+    server.log.info(`agent: ${llmProvider.name} ready (${agentTools.length} tools)`);
+    await server.register(agentRoute, { agent: agentService });
+  } else {
+    server.log.warn('agent: no LLM API key configured; /agent/chat will return 503');
+    server.post('/agent/chat', async (_req, reply) => {
+      reply.code(503).send({
+        error: 'Agent unavailable',
+        message:
+          'Set GEMINI_API_KEY (or LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY) and restart the server.',
+      });
+    });
+  }
 
   // ── Routes ───────────────────────────────────────────────────────────────
   await server.register(healthRoute, { controller: healthController });
@@ -129,7 +170,34 @@ export async function buildServer(): Promise<FastifyInstance> {
   await server.register(telemetryRoute, {
     telemetry: telemetryService,
     anomaly: anomalyService,
+    anomalyLog: anomalyLogService,
   });
 
   return server;
+}
+
+/**
+ * Construct the configured {@link LLMProvider}, or `null` when the
+ * corresponding API key is missing. Defaults to Gemini; set
+ * `LLM_PROVIDER=anthropic` to swap.
+ */
+function buildLLMProvider(log: {
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+}): LLMProvider | null {
+  const choice = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
+  if (choice === 'anthropic') {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      log.warn('LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is unset');
+      return null;
+    }
+    return createAnthropicProvider({ apiKey, model: process.env.ANTHROPIC_MODEL });
+  }
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    log.warn('GEMINI_API_KEY is unset; agent layer disabled');
+    return null;
+  }
+  return createGeminiProvider({ apiKey, model: process.env.GEMINI_MODEL });
 }

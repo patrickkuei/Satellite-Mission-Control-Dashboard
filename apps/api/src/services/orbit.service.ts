@@ -59,6 +59,20 @@ export interface OrbitService {
    * @throws If SGP4 propagation fails at any sample point.
    */
   predictPasses(sat: Satellite, observer: ObserverLocation, from: Date, hours: number): Pass[];
+  /**
+   * Topocentric look angles of `sat` from `observer` at `time`. Returns
+   * `null` if SGP4 fails at that instant.
+   *
+   * @param sat      - Satellite to look at.
+   * @param observer - Ground observer (lat/lon in degrees, optional altitude).
+   * @param time     - Instant to evaluate.
+   * @returns `{ elevationDeg, azimuthDeg, rangeKm }` or `null` on propagation failure.
+   */
+  lookAnglesAt(
+    sat: Satellite,
+    observer: ObserverLocation,
+    time: Date,
+  ): { elevationDeg: number; azimuthDeg: number; rangeKm: number } | null;
 }
 
 /**
@@ -97,6 +111,38 @@ export function createOrbitService(): OrbitService {
       const windowHours = Math.min(Math.max(hours, 0), PASS_MAX_HOURS);
       return findPasses(sat, observer, from, windowHours);
     },
+    lookAnglesAt(sat, observer, time) {
+      return lookAngles(sat, observer, time);
+    },
+  };
+}
+
+/**
+ * Full topocentric look angles (elevation + azimuth + range). Used by tools
+ * that need azimuth as well as elevation; the internal {@link elevationDeg}
+ * helper throws away the rest of the look-angle struct for pass scanning.
+ */
+function lookAngles(
+  sat: Satellite,
+  observer: ObserverLocation,
+  time: Date,
+): { elevationDeg: number; azimuthDeg: number; rangeKm: number } | null {
+  const satrec = satellite.twoline2satrec(sat.tle.line1, sat.tle.line2);
+  const pv = satellite.propagate(satrec, time);
+  if (!pv.position || typeof pv.position === 'boolean') return null;
+
+  const gmst = satellite.gstime(time);
+  const observerGd = {
+    latitude: (observer.lat * Math.PI) / 180,
+    longitude: (observer.lon * Math.PI) / 180,
+    height: (observer.altMeters ?? 0) / 1000,
+  };
+  const positionEcf = satellite.eciToEcf(pv.position, gmst);
+  const look = satellite.ecfToLookAngles(observerGd, positionEcf);
+  return {
+    elevationDeg: (look.elevation * 180) / Math.PI,
+    azimuthDeg: (look.azimuth * 180) / Math.PI,
+    rangeKm: look.rangeSat,
   };
 }
 

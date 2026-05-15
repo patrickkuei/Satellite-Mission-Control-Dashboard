@@ -6,13 +6,14 @@
  * detail card + upcoming passes over the user's observer location. All data
  * flow lives in hooks; this file only wires them to presentational components.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import StatusBadge from './components/StatusBadge';
 import { SpaceWeatherBadge } from './components/SpaceWeatherBadge';
 import { Globe, type SatelliteWithPosition } from './components/Globe';
 import { SatelliteDetail } from './components/SatelliteDetail';
 import { TelemetryStrip } from './components/TelemetryStrip';
 import { AlertLog } from './components/AlertLog';
+import { AgentChatPanel } from './components/AgentChatPanel';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSatellites } from './hooks/useSatellites';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
@@ -35,6 +36,7 @@ export function App(): JSX.Element {
   const { data: groundTrack } = useGroundTrack(selectedId);
   const { data: passes = [], isFetching: passesLoading } = usePasses(selectedId, observer);
   const { latestById, historyById, alerts } = useTelemetryStream();
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Join satellites + positions into the shape Globe expects.
   const pairs = useMemo<SatelliteWithPosition[]>(
@@ -59,10 +61,18 @@ export function App(): JSX.Element {
       <header className={styles.header}>
         <span className={styles.brand}>orbit.ctrl</span>
         <span className={styles.center}>
-          tracking <strong>{pairs.length}</strong> satellites · phase 3
+          tracking <strong>{pairs.length}</strong> satellites · phase 4
         </span>
         <span className={styles.headerRight}>
           <SpaceWeatherBadge weather={weather ?? null} />
+          <button
+            type="button"
+            className={styles.chatToggle}
+            onClick={() => setChatOpen((open) => !open)}
+            aria-pressed={chatOpen}
+          >
+            {chatOpen ? '◂ assistant' : 'assistant ▸'}
+          </button>
           <StatusBadge status={status} />
         </span>
       </header>
@@ -84,6 +94,7 @@ export function App(): JSX.Element {
       </section>
       <TelemetryStrip sample={selectedSample} history={selectedHistory} />
       <AlertLog alerts={alerts} nameById={nameById} selectedId={selectedId} />
+      <AgentChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </main>
   );
 }
