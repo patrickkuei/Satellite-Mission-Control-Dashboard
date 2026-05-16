@@ -15,9 +15,16 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { AgentService } from '../services/agent.service.js';
 
+const ConversationTurnSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().max(4000),
+});
+
 /** Body schema — Zod-validated by the type provider. */
 const AgentChatBodySchema = z.object({
   message: z.string().min(1).max(2000),
+  /** Prior turns sent from the client for multi-turn context. Max 20 to bound payload size. */
+  history: z.array(ConversationTurnSchema).max(20).optional(),
 });
 
 export interface AgentRouteOptions {
@@ -37,7 +44,7 @@ export const agentRoute: FastifyPluginAsync<AgentRouteOptions> = async (
   opts: AgentRouteOptions,
 ) => {
   fastify.post('/agent/chat', { schema: { body: AgentChatBodySchema } }, async (request, reply) => {
-    const { message } = request.body as z.infer<typeof AgentChatBodySchema>;
+    const { message, history } = request.body as z.infer<typeof AgentChatBodySchema>;
 
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -47,7 +54,7 @@ export const agentRoute: FastifyPluginAsync<AgentRouteOptions> = async (
     });
 
     try {
-      for await (const evt of opts.agent.chat(message)) {
+      for await (const evt of opts.agent.chat(message, history)) {
         reply.raw.write(`data: ${JSON.stringify(evt)}\n\n`);
         if (evt.type === 'done') break;
       }

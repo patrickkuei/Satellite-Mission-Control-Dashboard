@@ -29,6 +29,47 @@
   color: var(--color-text-secondary);
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.stopBtn {
+  flex: 0 0 36px;
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.stopBtn:hover {
+  background: var(--color-accent);
+  color: #000;
+}
+
+.newSession {
+  background: transparent;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 18px;
+  font-weight: 300;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.newSession:hover {
+  color: var(--color-accent);
+}
+
+.newSession:disabled {
+  color: var(--color-border-tertiary);
+  cursor: not-allowed;
+}
+
 .close {
   background: transparent;
   border: none;
@@ -139,6 +180,41 @@
 .chip_error {
   color: #d44;
   border-color: #d44;
+}
+
+@keyframes thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.thinking {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  padding: var(--space-xs) 0;
+  animation: thinking-pulse 1.4s ease-in-out infinite;
+}
+
+.retryBtn {
+  align-self: flex-start;
+  margin-top: var(--space-xs);
+  background: transparent;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 0;
+  letter-spacing: 0.04em;
+}
+
+.retryBtn:hover {
+  color: var(--color-accent);
 }
 
 .error {

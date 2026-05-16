@@ -74,6 +74,9 @@ importers:
       fastify-type-provider-zod:
         specifier: ^2.0.0
         version: 2.1.0(fastify@4.29.1)(zod@3.25.76)
+      groq-sdk:
+        specifier: ^1.2.0
+        version: 1.2.0
       satellite.js:
         specifier: ^7.0.0
         version: 7.0.0
@@ -1732,6 +1735,10 @@ packages:
 
   graphemer@1.4.0:
     resolution: {integrity: sha512-EtKwoO6kxCL9WO5xipiHTZlSzBm7WLT627TqC/uVRd0HKmq8NXyebnNYxDoBi7wt8eTWrUrKXCOVaFq9x1kgag==}
+
+  groq-sdk@1.2.0:
+    resolution: {integrity: sha512-pMhSYXWcjiqvbOeKdv2zjci1BYjGdp04a40hnmQmJpKJyB6oa+gRndAqE128gwR0NLgYO+Wt1fIF46KNHcplsw==}
+    hasBin: true
 
   gtoken@7.1.0:
     resolution: {integrity: sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==}
@@ -4348,6 +4355,8 @@ snapshots:
   gopd@1.2.0: {}
 
   graphemer@1.4.0: {}
+
+  groq-sdk@1.2.0: {}
 
   gtoken@7.1.0:
     dependencies:

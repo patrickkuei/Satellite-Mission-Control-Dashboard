@@ -902,8 +902,21 @@
 - [x] Transport-level retry (`withBackoff`) inside each adapter (unit tests pending).
 - [x] `toGeminiSchema()` normalizer (unit tests pending).
 - [x] Agent chat panel in right sidebar; response streams in real-time; tool calls visible as chips above each assistant message.
-- [ ] Multi-hop test cases pass on **both** providers — requires API keys, manual verification.
+- [x] Multi-hop test cases pass on **both** providers — manually verified (Gemini + Anthropic).
 - [x] Graceful degradation: missing API key disables the agent layer at startup with a warning; `/agent/chat` returns 503 with a setup hint. Transient upstream errors are retried by `withBackoff`.
+
+### Beyond original spec
+
+- [x] **Groq adapter** (`groq.client.ts`) — Llama 3.3 70B via Groq free tier; sub-second TTFT as mid-chain fallback.
+- [x] **Provider fallback chain** — `AgentServiceDeps.llm` is now `LLMProvider[]`. Orchestrator advances to next provider on exhausted retries. Chain: Gemini → Groq → Anthropic. Each provider optional; absent keys logged and skipped at startup.
+- [x] **Mid-stream restart** — `runOneTurn` catches stream errors inside `for await`. Error before first token → `providerFailed: true`, caller falls through to next provider. Error after text started → re-throw (user already saw partial content).
+- [x] **Real-time token streaming (TTFT fix)** — `runOneTurn` converted from buffered `Promise<TurnResult>` to `AsyncGenerator` that yields `text` events immediately. Frontend SSE pipe was already event-driven; the bottleneck was the backend buffer.
+- [x] **Multi-turn conversation history** — `POST /agent/chat` accepts `history: ConversationTurn[]`; `useAgentChat` sends completed turns with each request. Stale-closure bug fixed with `messagesRef`.
+- [x] **History compaction** — turns beyond a 6-message window are summarised via one cheap LLM call and injected as a synthetic context pair. Keeps Gemini free-tier context budget bounded without losing earlier facts.
+- [x] **Session-level tool call cache** — identical `(name, args)` pairs within one session return the cached result instantly. Prevents model loop amplification on Gemini free tier.
+- [x] **Tool description hardening** — disambiguated `predict_passes` vs `find_satellites_above` trigger phrases; added pronoun-resolution rule to system prompt. Eliminated "Can I see it from Tokyo?" → `find_satellites_above` misrouting.
+- [x] **`find_satellites_above` result cap** — capped at top 10 by elevation with total count. Prevents LLM looping on oversized tool results.
+- [x] **Chat UX** — thinking indicator (pulsing `thinking…` during silent LLM gaps), stop button (replaces send while streaming), retry button (inline below last assistant message, re-sends last user message with correct history), new session `+` button, human-readable tool chip labels.
 
 **Time:** 18-24 hours (up from 14-18 due to dual-adapter + abstraction layer)
 

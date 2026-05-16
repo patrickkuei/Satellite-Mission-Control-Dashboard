@@ -104,7 +104,7 @@ export const toolDefinitions: ReadonlyArray<ToolDefinition> = [
   {
     name: TOOL_NAMES.PREDICT_PASSES,
     description:
-      'Predict when a satellite will be visible above the horizon from a ground location over the next N hours. Returns a list of passes with start/end/peak times and max elevation. Use when the user asks "when will X be overhead" or "next pass over Y".',
+      'Predict when a named satellite will be visible from a ground location over the next N hours. Use this for any question about a specific satellite\'s visibility: "can I see ISS from Tokyo?", "when will X be overhead?", "next pass over Y?", "is X visible from Z?". Requires the satellite name — resolve pronouns like "it" from context before calling.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -167,7 +167,7 @@ export const toolDefinitions: ReadonlyArray<ToolDefinition> = [
   {
     name: TOOL_NAMES.FIND_SATELLITES_ABOVE,
     description:
-      'List tracked satellites currently above the horizon at a ground location, sorted by elevation. Use when the user asks "what\'s overhead right now" or wants to filter satellites by visibility.',
+      'List all tracked satellites that are above the horizon at a ground location RIGHT NOW, sorted by elevation. Use only for "what\'s overhead right now?" queries — do NOT use this to check visibility of a specific named satellite. For a specific satellite use predict_passes instead.',
     inputSchema: {
       type: 'object',
       properties: {

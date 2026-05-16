@@ -14,6 +14,19 @@ import { useAgentChat, type ChatMessage } from '../hooks/useAgentChat';
 import styles from './AgentChatPanel.module.css';
 
 /**
+ * Human-readable labels for tool names shown in the chip strip.
+ * Raw snake_case names are meaningful to engineers but opaque to interviewers.
+ */
+const TOOL_LABELS: Record<string, string> = {
+  get_satellite_position: 'Fetching satellite position',
+  predict_passes: 'Predicting passes',
+  get_space_weather: 'Checking space weather',
+  get_satellite_telemetry: 'Reading telemetry',
+  get_anomalies: 'Scanning for anomalies',
+  find_satellites_above: 'Finding overhead satellites',
+};
+
+/**
  * Suggested prompts displayed when the transcript is empty. Each one
  * exercises a multi-hop tool chain documented in the Phase 4 brief.
  */
@@ -32,7 +45,7 @@ export interface AgentChatPanelProps {
 }
 
 export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Element | null {
-  const { messages, streaming, error, send } = useAgentChat();
+  const { messages, streaming, thinking, error, send, stop, retry, reset } = useAgentChat();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -71,9 +84,21 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
     <aside className={styles.panel} aria-label="Mission control assistant">
       <header className={styles.header}>
         <span className={styles.title}>assistant</span>
-        <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
-          ✕
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.newSession}
+            onClick={reset}
+            disabled={streaming}
+            aria-label="New session"
+            title="New session"
+          >
+            +
+          </button>
+          <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </div>
       </header>
 
       <div className={styles.scroll} ref={scrollRef}>
@@ -91,8 +116,16 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
             </ul>
           </div>
         ) : (
-          messages.map((m) => <MessageRow key={m.id} message={m} />)
+          messages.map((m, i) => (
+            <MessageRow
+              key={m.id}
+              message={m}
+              showRetry={!streaming && m.role === 'assistant' && i === messages.length - 1}
+              onRetry={retry}
+            />
+          ))
         )}
+        {thinking && <div className={styles.thinking}>thinking…</div>}
         {error && <div className={styles.error}>{error}</div>}
       </div>
 
@@ -107,21 +140,34 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
           disabled={streaming}
           rows={2}
         />
-        <button
-          type="submit"
-          className={styles.send}
-          disabled={streaming || !input.trim()}
-          aria-label="Send"
-        >
-          ↵
-        </button>
+        {streaming ? (
+          <button
+            type="button"
+            className={styles.stopBtn}
+            onClick={stop}
+            aria-label="Stop generation"
+          >
+            ■
+          </button>
+        ) : (
+          <button type="submit" className={styles.send} disabled={!input.trim()} aria-label="Send">
+            ↵
+          </button>
+        )}
       </form>
     </aside>
   );
 }
 
+interface MessageRowProps {
+  message: ChatMessage;
+  /** Show the retry action below this message. */
+  showRetry: boolean;
+  onRetry: () => void;
+}
+
 /** One transcript row. Tool chips render above the body when present. */
-function MessageRow({ message }: { message: ChatMessage }): JSX.Element {
+function MessageRow({ message, showRetry, onRetry }: MessageRowProps): JSX.Element {
   return (
     <div className={`${styles.message} ${styles[message.role]}`}>
       {message.toolCalls.length > 0 && (
@@ -130,13 +176,18 @@ function MessageRow({ message }: { message: ChatMessage }): JSX.Element {
             const chipClass = styles[chipClassKey(tc.status)];
             return (
               <span key={`${tc.name}-${i}`} className={`${styles.chip} ${chipClass}`}>
-                {statusGlyph(tc.status)} {tc.name}
+                {statusGlyph(tc.status)} {TOOL_LABELS[tc.name] ?? tc.name}
               </span>
             );
           })}
         </div>
       )}
       {message.content && <div className={styles.body}>{message.content}</div>}
+      {showRetry && (
+        <button type="button" className={styles.retryBtn} onClick={onRetry} aria-label="Retry">
+          ↺ Retry
+        </button>
+      )}
     </div>
   );
 }

@@ -39,10 +39,25 @@ export interface AgentChat {
   messages: ChatMessage[];
   /** True while an assistant response is streaming. */
   streaming: boolean;
+  /**
+   * True when streaming but waiting on the LLM (no text or tool chip has
+   * arrived yet, or the last tool just finished and the next turn hasn't
+   * started). Used to show a "thinking…" indicator.
+   */
+  thinking: boolean;
   /** Last error from the stream (transport or model). Cleared on next send. */
   error: string | null;
   /** Send `text` as a user message and start a new streamed response. */
   send: (text: string) => void;
+  /** Abort the current stream without clearing the transcript. */
+  stop: () => void;
+  /**
+   * Re-send the last user message, replacing the last assistant response.
+   * No-op if there is no prior exchange or if streaming is in progress.
+   */
+  retry: () => void;
+  /** Clear the conversation and start a fresh session. */
+  reset: () => void;
 }
 
 /** Endpoint — proxied by Vite to `apps/api`. */
@@ -58,12 +73,29 @@ const AGENT_ENDPOINT = '/api/agent/chat';
 export function useAgentChat(): AgentChat {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Ref kept in sync with messages so callbacks with empty dep arrays always
+  // read the current list without needing to re-create on every render.
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
 
   // Cancel any in-flight stream when the hook unmounts.
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setStreaming(false);
+    setThinking(false);
+    setError(null);
   }, []);
 
   const send = useCallback((text: string) => {
@@ -87,21 +119,91 @@ export function useAgentChat(): AgentChat {
       toolCalls: [],
     };
 
+    // Read current messages via ref — avoids stale closure from empty dep array.
+    const history = buildHistory(messagesRef.current);
+
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setStreaming(true);
+    setThinking(true);
     setError(null);
 
-    void runStream(trimmed, controller.signal, assistantId, setMessages)
+    void runStream(trimmed, history, controller.signal, assistantId, setMessages, setThinking)
       .catch((err: unknown) => {
         if ((err as { name?: string }).name === 'AbortError') return;
         setError((err as Error).message);
       })
       .finally(() => {
         setStreaming(false);
+        setThinking(false);
       });
   }, []);
 
-  return { messages, streaming, error, send };
+  const retry = useCallback(() => {
+    const current = messagesRef.current;
+    // Find the last user message — that's what we re-send.
+    const lastUserIdx = [...current].reverse().findIndex((m) => m.role === 'user');
+    if (lastUserIdx === -1) return;
+    const userMsgIdx = current.length - 1 - lastUserIdx;
+    const userMsg = current[userMsgIdx];
+    if (!userMsg) return;
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // History = everything before the last user message (exclude the failed assistant reply).
+    const history = buildHistory(current.slice(0, userMsgIdx));
+
+    const assistantId = `a-${Date.now()}`;
+    const freshAssistant: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      toolCalls: [],
+    };
+
+    // Replace everything from the last user message onward with a fresh assistant slot.
+    setMessages((prev) => [...prev.slice(0, userMsgIdx + 1), freshAssistant]);
+    setStreaming(true);
+    setThinking(true);
+    setError(null);
+
+    void runStream(
+      userMsg.content,
+      history,
+      controller.signal,
+      assistantId,
+      setMessages,
+      setThinking,
+    )
+      .catch((err: unknown) => {
+        if ((err as { name?: string }).name === 'AbortError') return;
+        setError((err as Error).message);
+      })
+      .finally(() => {
+        setStreaming(false);
+        setThinking(false);
+      });
+  }, []);
+
+  return { messages, streaming, thinking, error, send, stop, retry, reset };
+}
+
+/** Serialisable turn for the history payload. */
+interface HistoryTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Extract completed user/assistant turns from the message list.
+ * Skips assistant messages with no content (still streaming) and tool-call
+ * metadata — the backend only needs the human-readable transcript.
+ */
+function buildHistory(messages: ChatMessage[]): HistoryTurn[] {
+  return messages
+    .filter((m) => m.content.trim() !== '')
+    .map((m) => ({ role: m.role, content: m.content }));
 }
 
 /**
@@ -112,14 +214,16 @@ export function useAgentChat(): AgentChat {
  */
 async function runStream(
   message: string,
+  history: HistoryTurn[],
   signal: AbortSignal,
   assistantId: string,
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  setThinking: React.Dispatch<React.SetStateAction<boolean>>,
 ): Promise<void> {
   const response = await fetch(AGENT_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, history }),
     signal,
   });
   if (!response.ok || !response.body) {
@@ -142,7 +246,7 @@ async function runStream(
       const block = buffer.slice(0, separator);
       buffer = buffer.slice(separator + 2);
       const evt = parseSseBlock(block);
-      if (evt) applyEvent(evt, assistantId, setMessages);
+      if (evt) applyEvent(evt, assistantId, setMessages, setThinking);
       separator = buffer.indexOf('\n\n');
     }
   }
@@ -168,8 +272,13 @@ function applyEvent(
   evt: AgentEvent,
   assistantId: string,
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  setThinking: React.Dispatch<React.SetStateAction<boolean>>,
 ): void {
   if (evt.type === 'done') return;
+  // Any content arriving means the LLM is no longer in a silent gap.
+  if (evt.type === 'text' || evt.type === 'tool_start') setThinking(false);
+  // After a tool ends, LLM enters another silent gap before the next turn.
+  if (evt.type === 'tool_end') setThinking(true);
   setMessages((prev) => prev.map((m) => (m.id === assistantId ? applyEventToMessage(m, evt) : m)));
 }
 

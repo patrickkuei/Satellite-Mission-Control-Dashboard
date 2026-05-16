@@ -36,6 +36,7 @@ import { createAgentToolRegistry } from './services/agent-tools.service.js';
 import { createToolBroker } from './services/tool-broker.js';
 import { createAgentService } from './services/agent.service.js';
 import { createGeminiProvider } from './clients/gemini.client.js';
+import { createGroqProvider } from './clients/groq.client.js';
 import { createAnthropicProvider } from './clients/anthropic.client.js';
 import type { LLMProvider } from './clients/llm-provider.js';
 import { createSatelliteController } from './controllers/satellite.controller.js';
@@ -131,12 +132,12 @@ export async function buildServer(): Promise<FastifyInstance> {
   const anomalyService = createAnomalyService();
   const anomalyLogService = createAnomalyLogService();
 
-  // ── Agent layer (Phase 4) ────────────────────────────────────────────────
-  // Provider selection is environment-driven. The agent layer is optional —
-  // if no API key is configured, the route registers a stub that returns 503
-  // rather than crashing the server (so the rest of the dashboard still runs).
-  const llmProvider = buildLLMProvider(server.log);
-  if (llmProvider) {
+  // ── Agent layer ──────────────────────────────────────────────────────────
+  // Builds a provider chain: Gemini → Groq → Anthropic. Each is optional —
+  // providers without a configured API key are silently skipped. If no key is
+  // configured at all, the route returns 503 so the rest of the dashboard runs.
+  const llmChain = buildLLMChain(server.log);
+  if (llmChain.length > 0) {
     const agentTools = createAgentToolRegistry({
       satellite: satelliteService,
       weather: weatherService,
@@ -146,19 +147,19 @@ export async function buildServer(): Promise<FastifyInstance> {
     });
     const toolBroker = createToolBroker(agentTools);
     const agentService = createAgentService({
-      llm: llmProvider,
+      llm: llmChain,
       broker: toolBroker,
       tools: agentTools,
     });
-    server.log.info(`agent: ${llmProvider.name} ready (${agentTools.length} tools)`);
+    const chainNames = llmChain.map((p) => p.name).join(' → ');
+    server.log.info(`agent: provider chain [${chainNames}] (${agentTools.length} tools)`);
     await server.register(agentRoute, { agent: agentService });
   } else {
     server.log.warn('agent: no LLM API key configured; /agent/chat will return 503');
     server.post('/agent/chat', async (_req, reply) => {
       reply.code(503).send({
         error: 'Agent unavailable',
-        message:
-          'Set GEMINI_API_KEY (or LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY) and restart the server.',
+        message: 'Set at least one of GEMINI_API_KEY, GROQ_API_KEY, or ANTHROPIC_API_KEY.',
       });
     });
   }
@@ -177,27 +178,59 @@ export async function buildServer(): Promise<FastifyInstance> {
 }
 
 /**
- * Construct the configured {@link LLMProvider}, or `null` when the
- * corresponding API key is missing. Defaults to Gemini; set
- * `LLM_PROVIDER=anthropic` to swap.
+ * Build the ordered LLM provider fallback chain from environment variables.
+ *
+ * Chain order: Gemini (primary) → Groq (fast free-tier fallback) → Anthropic (quality backstop).
+ * Each provider is included only if its API key is set — missing keys are
+ * skipped with a warning rather than failing startup. An empty array means
+ * no agent functionality is available.
+ *
+ * @example
+ * ```
+ * # All three configured → full chain
+ * GEMINI_API_KEY=...  GROQ_API_KEY=...  ANTHROPIC_API_KEY=...
+ * # Gemini only → no fallback, but still works
+ * GEMINI_API_KEY=...
+ * ```
  */
-function buildLLMProvider(log: {
+function buildLLMChain(log: {
   info: (msg: string) => void;
   warn: (msg: string) => void;
-}): LLMProvider | null {
-  const choice = (process.env.LLM_PROVIDER ?? 'gemini').toLowerCase();
-  if (choice === 'anthropic') {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      log.warn('LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is unset');
-      return null;
-    }
-    return createAnthropicProvider({ apiKey, model: process.env.ANTHROPIC_MODEL });
+}): LLMProvider[] {
+  const chain: LLMProvider[] = [];
+
+  if (process.env.GEMINI_API_KEY) {
+    chain.push(
+      createGeminiProvider({
+        apiKey: process.env.GEMINI_API_KEY,
+        model: process.env.GEMINI_MODEL,
+      }),
+    );
+  } else {
+    log.warn('GEMINI_API_KEY unset — Gemini excluded from provider chain');
   }
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    log.warn('GEMINI_API_KEY is unset; agent layer disabled');
-    return null;
+
+  if (process.env.GROQ_API_KEY) {
+    chain.push(
+      createGroqProvider({
+        apiKey: process.env.GROQ_API_KEY,
+        model: process.env.GROQ_MODEL,
+      }),
+    );
+  } else {
+    log.warn('GROQ_API_KEY unset — Groq excluded from provider chain');
   }
-  return createGeminiProvider({ apiKey, model: process.env.GEMINI_MODEL });
+
+  if (process.env.ANTHROPIC_API_KEY) {
+    chain.push(
+      createAnthropicProvider({
+        apiKey: process.env.ANTHROPIC_API_KEY,
+        model: process.env.ANTHROPIC_MODEL,
+      }),
+    );
+  } else {
+    log.warn('ANTHROPIC_API_KEY unset — Anthropic excluded from provider chain');
+  }
+
+  return chain;
 }

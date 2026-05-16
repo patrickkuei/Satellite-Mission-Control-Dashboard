@@ -81,7 +81,7 @@ export function createAgentToolRegistry(deps: AgentToolsDeps): Tool[] {
       const minElevationDeg = typeof input.minElevationDeg === 'number' ? input.minElevationDeg : 0;
       const all = await deps.satellite.list();
       const now = new Date();
-      return all
+      const visible = all
         .map((sat) => {
           const look = deps.orbit.lookAnglesAt(sat, { lat, lon }, now);
           if (!look) return null;
@@ -95,6 +95,16 @@ export function createAgentToolRegistry(deps: AgentToolsDeps): Tool[] {
         })
         .filter((s): s is NonNullable<typeof s> => s !== null && s.elevationDeg >= minElevationDeg)
         .sort((a, b) => b.elevationDeg - a.elevationDeg);
+
+      // Cap at 10 to keep the tool result digestible for the LLM.
+      // A full list of 30-50 satellites causes the model to loop rather than summarise.
+      const shown = visible.slice(0, 10);
+      return {
+        totalVisible: visible.length,
+        showing: shown.length,
+        note: visible.length > 10 ? `Showing top 10 of ${visible.length} by elevation.` : undefined,
+        satellites: shown,
+      };
     },
   };
 
