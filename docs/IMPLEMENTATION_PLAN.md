@@ -1071,11 +1071,19 @@
 
 ### Deliverable
 
-- [ ] MCP server package built and globally linkable
-- [ ] Claude Desktop can connect to server successfully
-- [ ] External queries via Claude Desktop return correct data
+- [x] MCP server package built and globally linkable (`packages/mcp-server/dist/index.js`)
+- [x] External queries via Claude Code MCP return correct data (ISS position, pass prediction, telemetry verified live)
+- [x] Claude Desktop can connect to server successfully (verified — position + pass prediction return correct data; space weather + telemetry require API server to be running)
 - [ ] Demo video uploaded and linked in README
-- [ ] README documentation explains setup for users
+- [x] README documentation explains setup for users (`packages/mcp-server/README.md`)
+
+### Beyond original spec
+
+- [x] **HTTP execute layer** — MCP server delegates to `apps/api` over HTTP rather than calling `toolRegistry.execute` directly. Keeps business logic in one process; MCP server is a thin adapter.
+- [x] **`.mcp.json`** — project-level MCP config added so Claude Code connects to the server automatically without manual Claude Desktop setup during development.
+- [x] **Satellite name resolution** — `resolveSatellite()` helper in MCP server accepts either a NORAD ID or a case-insensitive name fragment, mirroring the in-process agent behaviour.
+- [x] **`process.stdin.resume()` workaround added then removed** — patched Windows stdin auto-resume issue caused by an old path with special characters; removed after folder rename made it unnecessary.
+- [x] **Three new REST endpoints** for MCP tool support: `GET /telemetry/snapshot`, `GET /anomalies`, `GET /satellites/above`.
 
 **Time:** 10-14 hours
 

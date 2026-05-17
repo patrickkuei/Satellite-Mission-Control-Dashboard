@@ -41,9 +41,11 @@ import { createAnthropicProvider } from './clients/anthropic.client.js';
 import type { LLMProvider } from './clients/llm-provider.js';
 import { createSatelliteController } from './controllers/satellite.controller.js';
 import { createWeatherController } from './controllers/weather.controller.js';
+import { createAnomalyController } from './controllers/anomaly.controller.js';
 import { satelliteRoute } from './routes/satellite.route.js';
 import { weatherRoute } from './routes/weather.route.js';
 import { telemetryRoute } from './routes/telemetry.route.js';
+import { anomalyRoute } from './routes/anomaly.route.js';
 import { agentRoute } from './routes/agent.route.js';
 
 /** Version reported by `/health`. Bumped in lockstep with `package.json`. */
@@ -131,6 +133,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
   const anomalyService = createAnomalyService();
   const anomalyLogService = createAnomalyLogService();
+  const anomalyController = createAnomalyController({
+    anomalyLog: anomalyLogService,
+    satellite: satelliteService,
+  });
 
   // ── Agent layer ──────────────────────────────────────────────────────────
   // Builds a provider chain: Gemini → Groq → Anthropic. Each is optional —
@@ -173,6 +179,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     anomaly: anomalyService,
     anomalyLog: anomalyLogService,
   });
+  await server.register(anomalyRoute, { controller: anomalyController });
 
   return server;
 }

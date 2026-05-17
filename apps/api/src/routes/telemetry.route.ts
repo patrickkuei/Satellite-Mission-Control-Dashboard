@@ -13,7 +13,9 @@
  * after the last disconnect.
  */
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import type { Anomaly, Telemetry, WSMessage } from '@orbit-ctrl/types';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
+import { TelemetrySchema, type Anomaly, type Telemetry, type WSMessage } from '@orbit-ctrl/types';
 
 /** Minimal structural type covering the methods we call on a WS connection. */
 interface BroadcastSocket {
@@ -46,6 +48,24 @@ export const telemetryRoute: FastifyPluginAsync<TelemetryRouteOptions> = async (
   fastify: FastifyInstance,
   opts: TelemetryRouteOptions,
 ) => {
+  /**
+   * `GET /telemetry/snapshot` — one-shot REST snapshot of current telemetry for all tracked
+   * satellites. Used by the MCP server's `get_satellite_telemetry` tool; the WebSocket stream
+   * is not accessible from a stdio process.
+   *
+   * @example GET /telemetry/snapshot
+   */
+  fastify
+    .withTypeProvider<ZodTypeProvider>()
+    .get(
+      '/telemetry/snapshot',
+      { schema: { response: { 200: z.array(TelemetrySchema) } } },
+      async (_req, reply) => {
+        reply.type('application/json');
+        return opts.telemetry.sample();
+      },
+    );
+
   const clients = new Set<BroadcastSocket>();
   let timer: NodeJS.Timeout | null = null;
 

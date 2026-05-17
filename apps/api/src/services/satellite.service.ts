@@ -46,6 +46,18 @@ export interface SatelliteServiceDeps {
   logger: SatelliteServiceLogger;
 }
 
+/** One entry in the list returned by {@link SatelliteService.findAbove}. */
+export interface VisibleSatellite {
+  name: string;
+  noradId: number;
+  /** Elevation above horizon in degrees (0 = horizon, 90 = zenith). */
+  elevationDeg: number;
+  /** Azimuth clockwise from north in degrees. */
+  azimuthDeg: number;
+  /** Slant range from observer to satellite in kilometres. */
+  rangeKm: number;
+}
+
 /** Public surface of the satellite service. */
 export interface SatelliteService {
   /** Return the curated list of tracked satellites, populating the cache on first call. */
@@ -64,6 +76,19 @@ export interface SatelliteService {
    * @param hours    - Forward window length in hours.
    */
   passesOf(noradId: number, observer: ObserverLocation, hours: number): Promise<Pass[]>;
+  /**
+   * Return all currently tracked satellites above the horizon at `observer`,
+   * sorted by elevation descending. Capped at 10 results.
+   *
+   * @param observer        - Ground observer (lat/lon degrees).
+   * @param minElevationDeg - Minimum elevation to include (default 0°).
+   * @example
+   * ```ts
+   * const visible = await service.findAbove({ lat: 35.68, lon: 139.69 });
+   * console.log(visible[0].name); // highest satellite
+   * ```
+   */
+  findAbove(observer: ObserverLocation, minElevationDeg?: number): Promise<VisibleSatellite[]>;
 }
 
 /**
@@ -104,6 +129,25 @@ export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteSer
     async passesOf(noradId, observer, hours) {
       const sat = await findSatellite(noradId);
       return deps.orbit.predictPasses(sat, observer, new Date(), hours);
+    },
+    async findAbove(observer, minElevationDeg = 0) {
+      const all = await ensureLoaded();
+      const now = new Date();
+      const visible = all
+        .map((sat) => {
+          const look = deps.orbit.lookAnglesAt(sat, observer, now);
+          if (!look) return null;
+          return {
+            name: sat.name,
+            noradId: sat.noradId,
+            elevationDeg: Math.round(look.elevationDeg * 100) / 100,
+            azimuthDeg: Math.round(look.azimuthDeg * 100) / 100,
+            rangeKm: Math.round(look.rangeKm * 100) / 100,
+          };
+        })
+        .filter((s): s is NonNullable<typeof s> => s !== null && s.elevationDeg >= minElevationDeg)
+        .sort((a, b) => b.elevationDeg - a.elevationDeg);
+      return visible.slice(0, 10);
     },
   };
 }

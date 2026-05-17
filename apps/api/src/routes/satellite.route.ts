@@ -11,6 +11,23 @@ import { z } from 'zod';
 import { GroundTrackSchema, PassSchema, PositionSchema, SatelliteSchema } from '@orbit-ctrl/types';
 import type { SatelliteController } from '../controllers/satellite.controller.js';
 
+/** One satellite entry in the `/satellites/above` response. */
+const VisibleSatelliteSchema = z.object({
+  name: z.string(),
+  noradId: z.number(),
+  elevationDeg: z.number(),
+  azimuthDeg: z.number(),
+  rangeKm: z.number(),
+});
+
+/** Response shape for `GET /satellites/above`. */
+const SatellitesAboveResponseSchema = z.object({
+  totalVisible: z.number().int().nonnegative(),
+  showing: z.number().int().nonnegative(),
+  note: z.string().optional(),
+  satellites: z.array(VisibleSatelliteSchema),
+});
+
 export interface SatelliteRouteOptions {
   controller: SatelliteController;
 }
@@ -28,6 +45,13 @@ const TimeQuerySchema = z.object({
 /** `?periodMin=...` query — clamped to a sensible range so we don't propagate weeks ahead. */
 const TrackQuerySchema = z.object({
   periodMin: z.coerce.number().positive().max(720).optional(),
+});
+
+/** `?lat=&lon=&minElevationDeg=` query for the `/satellites/above` endpoint. */
+const AboveQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lon: z.coerce.number().min(-180).max(180),
+  minElevationDeg: z.coerce.number().min(0).max(90).optional(),
 });
 
 /**
@@ -110,5 +134,23 @@ export const satelliteRoute: FastifyPluginAsync<SatelliteRouteOptions> = async (
       },
     },
     opts.controller.getPasses,
+  );
+
+  /**
+   * `GET /satellites/above` — satellites currently above the horizon at `observer`.
+   *
+   * Returns the top 10 by elevation. Used by the MCP server's `find_satellites_above` tool.
+   *
+   * @example GET /satellites/above?lat=35.68&lon=139.69&minElevationDeg=10
+   */
+  f.get(
+    '/satellites/above',
+    {
+      schema: {
+        querystring: AboveQuerySchema,
+        response: { 200: SatellitesAboveResponseSchema },
+      },
+    },
+    opts.controller.getAbove,
   );
 };

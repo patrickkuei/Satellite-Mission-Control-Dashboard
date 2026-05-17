@@ -9,7 +9,11 @@
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { GroundTrack, Pass, Position, Satellite } from '@orbit-ctrl/types';
-import { SatelliteNotFoundError, type SatelliteService } from '../services/satellite.service.js';
+import {
+  SatelliteNotFoundError,
+  type SatelliteService,
+  type VisibleSatellite,
+} from '../services/satellite.service.js';
 
 /** Default pass-prediction window (in hours) when the client doesn't specify. */
 const DEFAULT_PASS_HOURS = 24;
@@ -36,6 +40,17 @@ export interface SatelliteController {
     }>,
     reply: FastifyReply,
   ): Promise<Pass[]>;
+  getAbove(
+    req: FastifyRequest<{
+      Querystring: { lat: number; lon: number; minElevationDeg?: number };
+    }>,
+    reply: FastifyReply,
+  ): Promise<{
+    totalVisible: number;
+    showing: number;
+    note?: string;
+    satellites: VisibleSatellite[];
+  }>;
 }
 
 /**
@@ -86,6 +101,13 @@ export function createSatelliteController(service: SatelliteService): SatelliteC
           req.query.hours ?? DEFAULT_PASS_HOURS,
         ),
       );
+    },
+    async getAbove(req, reply) {
+      reply.type('application/json');
+      const { lat, lon, minElevationDeg } = req.query;
+      const satellites = await service.findAbove({ lat, lon }, minElevationDeg);
+      const total = satellites.length;
+      return { totalVisible: total, showing: total, satellites };
     },
   };
 }
