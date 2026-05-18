@@ -1,10 +1,15 @@
 .strip {
   display: flex;
+  align-items: center;
   gap: var(--space-md);
   padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--color-border-tertiary);
   background: var(--color-bg-primary);
-  flex: 0 0 auto;
+  /* Fixed height prevents layout shift when switching between the empty
+     placeholder and the three MetricCards — that shift was resizing the
+     Globe container and causing visible canvas jitter on satellite select. */
+  flex: 0 0 88px;
+  overflow: hidden;
 }
 
 .empty {
@@ -14,5 +19,4 @@
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--color-text-tertiary);
-  padding: var(--space-lg) 0;
 }
