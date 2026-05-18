@@ -79,6 +79,17 @@ export function Globe({
     controls.autoRotateSpeed = 0.35;
   }, []);
 
+  // Pause rotation while the cursor is over the globe so users can aim at
+  // a satellite without it drifting away under their mouse.
+  const handleMouseEnter = () => {
+    const controls = globeRef.current?.controls();
+    if (controls) controls.autoRotate = false;
+  };
+  const handleMouseLeave = () => {
+    const controls = globeRef.current?.controls();
+    if (controls) controls.autoRotate = true;
+  };
+
   // react-globe.gl falls back to window.innerWidth/Height when width/height
   // props are missing — that ignores the flex sidebar and pushes content
   // off-screen. Observe the host element instead and feed back its real size.
@@ -102,7 +113,12 @@ export function Globe({
   const auroraColor = `rgba(74, 222, 128, ${auroraOpacity(kpIndex ?? 0)})`;
 
   return (
-    <div className={styles.host} ref={hostRef}>
+    <div
+      className={styles.host}
+      ref={hostRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <GlobeGL
         ref={globeRef}
         width={size.w}
@@ -142,19 +158,36 @@ export function Globe({
 }
 
 /**
- * Build a closure that returns a fresh Three.js mesh for a given satellite
- * sample. Captured `selectedId` decides the highlight colour.
+ * Build a closure that returns a Three.js Group for a given satellite.
+ *
+ * Each group contains two spheres:
+ *  - A small visible sphere (amber or green for selected).
+ *  - A larger transparent sphere that acts as the click hit area, making
+ *    satellites much easier to select on a rotating globe at typical zoom.
+ *
+ * Geometry and material objects are shared across all instances (created once
+ * in the closure) — only the Mesh and Group wrappers are allocated per call.
  */
 function makeSatelliteMeshFactory(
   selectedId: number | null,
 ): (sat: SatelliteWithPosition) => THREE.Object3D {
-  const geometry = new THREE.SphereGeometry(0.5, 12, 12);
+  const visGeometry = new THREE.SphereGeometry(0.6, 12, 12);
+  const hitGeometry = new THREE.SphereGeometry(2.5, 6, 6);
   const baseMaterial = new THREE.MeshBasicMaterial({ color: ACCENT_COLOR });
   const selectedMaterial = new THREE.MeshBasicMaterial({ color: SELECTED_COLOR });
+  // depthWrite false keeps the invisible sphere from occluding labels/paths.
+  const hitMaterial = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
 
   return (sat) => {
-    const material = sat.satellite.noradId === selectedId ? selectedMaterial : baseMaterial;
-    return new THREE.Mesh(geometry, material);
+    const visMat = sat.satellite.noradId === selectedId ? selectedMaterial : baseMaterial;
+    const group = new THREE.Group();
+    group.add(new THREE.Mesh(visGeometry, visMat));
+    group.add(new THREE.Mesh(hitGeometry, hitMaterial));
+    return group;
   };
 }
 

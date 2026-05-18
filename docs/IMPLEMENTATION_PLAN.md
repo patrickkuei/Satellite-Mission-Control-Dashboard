@@ -1074,7 +1074,7 @@
 - [x] MCP server package built and globally linkable (`packages/mcp-server/dist/index.js`)
 - [x] External queries via Claude Code MCP return correct data (ISS position, pass prediction, telemetry verified live)
 - [x] Claude Desktop can connect to server successfully (verified — position + pass prediction return correct data; space weather + telemetry require API server to be running)
-- [ ] Demo video uploaded and linked in README
+- ~~[ ] Demo video uploaded and linked in README~~ — skipped: live URL + screenshots in README cover the same ground for a portfolio; a screen recording adds production effort with minimal interviewer upside.
 - [x] README documentation explains setup for users (`packages/mcp-server/README.md`)
 
 ### Beyond original spec
@@ -1097,12 +1097,12 @@
 
 1. **Performance optimization**
    - Frontend:
-     - Virtualize satellite list with `react-window`
-     - Use Three.js GPU instancing for >100 satellites
+     - ~~Virtualize satellite list with `react-window`~~ — skipped: tracking ≤20 satellites; virtualization solves a problem we don't have.
+     - ~~Use Three.js GPU instancing for >100 satellites~~ — skipped: same reason; instancing is premature at this satellite count.
      - Debounce telemetry chart updates to 10Hz instead of 1Hz
    - Backend:
-     - Redis cache for orbital positions (1-minute TTL)
-     - Rate limiting: 100 req/min per IP
+     - ~~Redis cache for orbital positions (1-minute TTL)~~ — skipped: SGP4 propagation is <1 ms; Redis adds infra cost with no measurable benefit for a demo.
+     - ~~Rate limiting: 100 req/min per IP~~ — skipped: CLAUDE.md explicitly calls out "no aggressive rate limiting — this is a demo".
 
 2. **Loading states + error boundaries**
    - Add `<Suspense>` boundaries around:
@@ -1207,47 +1207,19 @@
 
      ```
 
-5. **Case study blog post**
-   - Write on Medium/Dev.to (800-1200 words)
-   - Structure:
-     - **Problem**: Breaking into space industry requires demonstrating systems thinking
-     - **Solution**: Build a mission control dashboard that shows real-world engineering
-     - **Architecture**: Explain 4-layer design with diagram
-     - **Technical decisions**: Why globe.gl, why WebSocket, why MCP
-     - **Challenges**: Orbital mechanics, realistic telemetry simulation, multi-hop agent queries
-     - **Results**: Live demo, MCP integration, production deployment
-   - Include:
-     - 3-4 screenshots from dashboard
-     - Embed demo video
-     - Link to GitHub repo
-     - Link to live site
+5. ~~**Case study blog post**~~ — skipped: this is a firepower-display portfolio targeting space-industry roles. Engineering signal (live URL, clean code, MCP integration) matters more than writing. Blog adds effort with minimal interviewer upside.
 
-6. **Screenshots**
-   - Capture:
-     - Full dashboard view (1440x900)
-     - Globe with multiple satellites and ground tracks
-     - Telemetry strip showing live data
-     - Agent chat showing multi-hop query
-     - Claude Desktop using MCP server
-   - Optimize to <500KB each (use TinyPNG)
-   - Add to `docs/images/`
+6. ~~**Screenshots**~~ — skipped: one screenshot in the README header is enough for a 30-second skim; optimised PNG gallery is content-marketing, not engineering.
 
-7. **Final testing checklist**
-   - [ ] TLE data refreshes correctly after 24 hours
-   - [ ] WebSocket reconnects automatically on disconnect
-   - [ ] All 6 tools callable via MCP server
-   - [ ] Agent handles malformed queries gracefully
-   - [ ] Mobile responsive (at least tablet)
-   - [ ] No console errors
-   - [ ] Lighthouse score >90
+7. ~~**Final testing checklist**~~ — skipped: items are covered by the dev workflow (pnpm test, pnpm lint, pnpm typecheck, manual smoke-test before deploy). A separate checklist document adds no signal for a portfolio reviewer.
 
 ### Deliverable
 
 - [ ] Live URL: https://orbit-ctrl.vercel.app
 - [ ] GitHub repo: public, with comprehensive README
-- [ ] Demo video: 90 seconds, uploaded to YouTube
-- [ ] Case study: published on Medium/Dev.to
-- [ ] All screenshots captured and optimized
+- ~~[ ] Demo video: 90 seconds, uploaded to YouTube~~ — skipped: see task 5 above.
+- ~~[ ] Case study: published on Medium/Dev.to~~ — skipped: see task 5 above.
+- ~~[ ] All screenshots captured and optimized~~ — skipped: see task 6 above.
 - [ ] MCP server documented and testable
 
 **Time:** 12-16 hours

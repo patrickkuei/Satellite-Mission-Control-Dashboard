@@ -5,9 +5,14 @@
  * accent colour. Satellite names are joined in at the call site so this
  * component stays free of the satellite map.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useCallback } from 'react';
 import type { Anomaly } from '@orbit-ctrl/types';
 import styles from './AlertLog.module.css';
+
+/** Height bounds for the resizable log panel (px). */
+const MIN_HEIGHT = 80;
+const MAX_HEIGHT = 400;
+const DEFAULT_HEIGHT = 160;
 
 /** Filter mode for the alert log. */
 type Scope = 'all' | 'selected';
@@ -31,6 +36,34 @@ export interface AlertLogProps {
  */
 export function AlertLog({ alerts, nameById, selectedId }: AlertLogProps): JSX.Element {
   const [scope, setScope] = useState<Scope>('all');
+  const [height, setHeight] = useState(DEFAULT_HEIGHT);
+  const dragStartY = useRef<number | null>(null);
+  const dragStartHeight = useRef(DEFAULT_HEIGHT);
+
+  const onDragStart = useCallback(
+    (e: React.MouseEvent) => {
+      dragStartY.current = e.clientY;
+      dragStartHeight.current = height;
+
+      const onMove = (ev: MouseEvent) => {
+        if (dragStartY.current === null) return;
+        // Dragging up (negative delta) increases height since log is at the bottom.
+        const delta = dragStartY.current - ev.clientY;
+        const next = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, dragStartHeight.current + delta));
+        setHeight(next);
+      };
+
+      const onUp = () => {
+        dragStartY.current = null;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [height],
+  );
 
   const visible = useMemo(() => {
     if (scope === 'selected' && selectedId !== null) {
@@ -42,7 +75,8 @@ export function AlertLog({ alerts, nameById, selectedId }: AlertLogProps): JSX.E
   const selectedDisabled = selectedId === null;
 
   return (
-    <section className={styles.log} aria-label="Anomaly log">
+    <section className={styles.log} style={{ height }} aria-label="Anomaly log">
+      <div className={styles.dragHandle} onMouseDown={onDragStart} aria-hidden="true" />
       <header className={styles.header}>
         <span className={styles.title}>Alerts</span>
         <div className={styles.controls}>

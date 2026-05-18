@@ -58,6 +58,13 @@ export function useTelemetryStream(): TelemetryStream {
   const attemptRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
+  // Throttle chart re-renders to 10 Hz. Data is still accumulated on every
+  // WS frame in latestRef/historyRef; only setState (which triggers a render)
+  // is gated. This means history stays accurate even if frames arrive faster
+  // than the render budget.
+  const lastRenderRef = useRef(0);
+  const pendingLatestRef = useRef<Map<number, Telemetry>>(new Map());
+  const pendingHistoryRef = useRef<Map<number, Telemetry[]>>(new Map());
 
   useEffect(() => {
     // Each effect activation captures its own `abandoned` flag in closure.
@@ -69,21 +76,24 @@ export function useTelemetryStream(): TelemetryStream {
     let abandoned = false;
 
     function applyTelemetry(samples: Telemetry[]): void {
-      setLatestById((prev) => {
-        const next = new Map(prev);
-        for (const s of samples) next.set(s.satelliteId, s);
-        return next;
-      });
-      setHistoryById((prev) => {
-        const next = new Map(prev);
-        for (const s of samples) {
-          const existing = next.get(s.satelliteId) ?? [];
-          const appended = [...existing, s];
-          if (appended.length > HISTORY_LEN) appended.splice(0, appended.length - HISTORY_LEN);
-          next.set(s.satelliteId, appended);
-        }
-        return next;
-      });
+      // Accumulate into pending refs on every frame (no render cost).
+      for (const s of samples) {
+        pendingLatestRef.current.set(s.satelliteId, s);
+        const existing = pendingHistoryRef.current.get(s.satelliteId) ?? [];
+        const appended = [...existing, s];
+        if (appended.length > HISTORY_LEN) appended.splice(0, appended.length - HISTORY_LEN);
+        pendingHistoryRef.current.set(s.satelliteId, appended);
+      }
+
+      // Flush to state at most 10 Hz (every 100 ms) to cap React render rate.
+      const now = Date.now();
+      if (now - lastRenderRef.current < 100) return;
+      lastRenderRef.current = now;
+
+      const latestSnap = new Map(pendingLatestRef.current);
+      const historySnap = new Map(pendingHistoryRef.current);
+      setLatestById(latestSnap);
+      setHistoryById(historySnap);
     }
 
     function applyAlert(alert: Anomaly): void {

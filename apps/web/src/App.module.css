@@ -70,3 +70,34 @@
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
+
+/* Glow while the AI panel is closed — signals live intelligence is available. */
+.chatToggleGlow {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  animation: neon-pulse 2s ease-in-out infinite;
+}
+
+@keyframes neon-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 4px rgba(255, 107, 53, 0.4),
+      0 0 10px rgba(255, 107, 53, 0.2);
+  }
+  50% {
+    box-shadow: var(--shadow-glow-accent);
+  }
+}
+
+.reconnectBanner {
+  flex: 0 0 auto;
+  padding: 4px var(--space-xl);
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom: 1px solid var(--color-warning);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-warning);
+  letter-spacing: 0.06em;
+  text-align: center;
+}

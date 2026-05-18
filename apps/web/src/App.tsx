@@ -6,14 +6,16 @@
  * detail card + upcoming passes over the user's observer location. All data
  * flow lives in hooks; this file only wires them to presentational components.
  */
-import { useMemo, useState } from 'react';
+import { Suspense, lazy, useMemo, useState } from 'react';
 import StatusBadge from './components/StatusBadge';
 import { SpaceWeatherBadge } from './components/SpaceWeatherBadge';
-import { Globe, type SatelliteWithPosition } from './components/Globe';
+import type { SatelliteWithPosition } from './components/Globe';
+import { GlobeSkeleton } from './components/GlobeSkeleton';
 import { SatelliteDetail } from './components/SatelliteDetail';
 import { TelemetryStrip } from './components/TelemetryStrip';
 import { AlertLog } from './components/AlertLog';
 import { AgentChatPanel } from './components/AgentChatPanel';
+import { Toasts } from './components/Toasts';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSatellites } from './hooks/useSatellites';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
@@ -25,6 +27,9 @@ import { useSelectedSatellite } from './stores/selectedSatellite';
 import { useObserverLocation } from './stores/observerLocation';
 import styles from './App.module.css';
 
+// Lazy-load the Globe so Three.js (~1 MB) doesn't block the initial paint.
+const Globe = lazy(() => import('./components/Globe').then((m) => ({ default: m.Globe })));
+
 export function App(): JSX.Element {
   const { data: health, error: healthError } = useApiHealth();
   const { data: satellites = [] } = useSatellites();
@@ -35,7 +40,7 @@ export function App(): JSX.Element {
   const observer = useObserverLocation((s) => s.location);
   const { data: groundTrack } = useGroundTrack(selectedId);
   const { data: passes = [], isFetching: passesLoading } = usePasses(selectedId, observer);
-  const { latestById, historyById, alerts } = useTelemetryStream();
+  const { latestById, historyById, alerts, state: wsState } = useTelemetryStream();
   const [chatOpen, setChatOpen] = useState(false);
 
   // Join satellites + positions into the shape Globe expects.
@@ -67,7 +72,7 @@ export function App(): JSX.Element {
           <SpaceWeatherBadge weather={weather ?? null} />
           <button
             type="button"
-            className={styles.chatToggle}
+            className={`${styles.chatToggle} ${!chatOpen ? styles.chatToggleGlow : ''}`}
             onClick={() => setChatOpen((open) => !open)}
             aria-pressed={chatOpen}
           >
@@ -76,15 +81,22 @@ export function App(): JSX.Element {
           <StatusBadge status={status} />
         </span>
       </header>
+      {wsState !== 'open' && (
+        <div className={styles.reconnectBanner}>
+          {wsState === 'connecting' ? 'reconnecting telemetry…' : 'telemetry offline'}
+        </div>
+      )}
       <section className={styles.stage}>
-        <Globe
-          satellites={pairs}
-          groundTrack={groundTrack ?? null}
-          selectedId={selectedId}
-          onSelect={setSelected}
-          observer={observer}
-          kpIndex={weather?.kpIndex ?? null}
-        />
+        <Suspense fallback={<GlobeSkeleton />}>
+          <Globe
+            satellites={pairs}
+            groundTrack={groundTrack ?? null}
+            selectedId={selectedId}
+            onSelect={setSelected}
+            observer={observer}
+            kpIndex={weather?.kpIndex ?? null}
+          />
+        </Suspense>
         <SatelliteDetail
           data={selectedPair}
           passes={passes}
@@ -95,6 +107,7 @@ export function App(): JSX.Element {
       <TelemetryStrip sample={selectedSample} history={selectedHistory} />
       <AlertLog alerts={alerts} nameById={nameById} selectedId={selectedId} />
       <AgentChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      <Toasts />
     </main>
   );
 }
