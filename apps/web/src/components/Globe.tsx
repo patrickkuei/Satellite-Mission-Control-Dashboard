@@ -70,9 +70,6 @@ export function Globe({
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
-  // Set to true inside onObjectClick / onGlobeClick so the host div's onClick
-  // handler knows the click was already handled and skips deselection.
-  const clickHandledRef = useRef(false);
 
   // ── Auto-rotate the globe on mount for a bit of "alive" feel. ───────────
   useEffect(() => {
@@ -136,16 +133,6 @@ export function Globe({
       ref={hostRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onClick={() => {
-        // Deselect when clicking the panel background (outside the globe
-        // sphere). Canvas clicks bubble here too, so we skip if the click
-        // was already handled by onObjectClick / onGlobeClick.
-        if (clickHandledRef.current) {
-          clickHandledRef.current = false;
-          return;
-        }
-        onSelect(null);
-      }}
     >
       <button
         type="button"
@@ -169,13 +156,9 @@ export function Globe({
         objectLabel={(d) => formatLabel(d as SatelliteWithPosition)}
         objectThreeObject={(d) => buildMesh(d as SatelliteWithPosition)}
         onObjectClick={(d) => {
-          clickHandledRef.current = true;
           const noradId = (d as SatelliteWithPosition).satellite.noradId;
+          // Toggle: clicking the already-selected satellite deselects it.
           onSelect(noradId === selectedId ? null : noradId);
-        }}
-        onGlobeClick={() => {
-          clickHandledRef.current = true;
-          onSelect(null);
         }}
         pointsData={[observer]}
         pointLat={(d) => (d as ObserverLocation).lat}
