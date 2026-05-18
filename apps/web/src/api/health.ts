@@ -33,8 +33,10 @@ export interface HealthReport {
  * console.warn(`API uptime: ${report.process.uptimeSeconds}s`);
  * ```
  */
+import { apiBase } from './config';
+
 export async function fetchHealth(): Promise<HealthReport> {
-  const res = await fetch('/api/health');
+  const res = await fetch(`${apiBase}/health`);
   if (!res.ok) {
     throw new Error(`GET /api/health failed: ${res.status} ${res.statusText}`);
   }

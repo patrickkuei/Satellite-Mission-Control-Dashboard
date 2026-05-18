@@ -61,7 +61,8 @@ export interface AgentChat {
 }
 
 /** Endpoint — proxied by Vite to `apps/api`. */
-const AGENT_ENDPOINT = '/api/agent/chat';
+import { apiBase } from '../api/config';
+const AGENT_ENDPOINT = `${apiBase}/agent/chat`;
 
 /**
  * @example

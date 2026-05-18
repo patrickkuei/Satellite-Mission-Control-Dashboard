@@ -12,6 +12,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { WSMessageSchema, type Anomaly, type Telemetry, type WSMessage } from '@orbit-ctrl/types';
+import { wsBase } from '../api/config';
 
 /** Samples retained per satellite for sparkline rendering (~1 minute at 1 Hz). */
 const HISTORY_LEN = 60;
@@ -108,7 +109,7 @@ export function useTelemetryStream(): TelemetryStream {
     function connect(): void {
       if (abandoned) return;
       setState('connecting');
-      const url = `${wsProtocol()}//${window.location.host}/ws/telemetry`;
+      const url = `${wsBase}/ws/telemetry`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 

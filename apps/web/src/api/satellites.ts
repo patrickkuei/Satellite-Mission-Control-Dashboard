@@ -6,11 +6,12 @@
  * shared with the backend.
  */
 import type { GroundTrack, ObserverLocation, Pass, Position, Satellite } from '@orbit-ctrl/types';
+import { apiBase } from './config';
 
 /** Fetch the curated list of tracked satellites (one-time on app boot). */
 export async function fetchSatellites(): Promise<Satellite[]> {
-  const res = await fetch('/api/satellites');
-  if (!res.ok) throw new Error(`GET /api/satellites failed: ${res.status}`);
+  const res = await fetch('${apiBase}/satellites');
+  if (!res.ok) throw new Error(`GET ${apiBase}/satellites failed: ${res.status}`);
   return (await res.json()) as Satellite[];
 }
 
@@ -22,18 +23,18 @@ export async function fetchSatellites(): Promise<Satellite[]> {
  */
 export async function fetchSatellitePositions(time?: string): Promise<Position[]> {
   const url = time
-    ? `/api/satellites/positions?time=${encodeURIComponent(time)}`
-    : '/api/satellites/positions';
+    ? `${apiBase}/satellites/positions?time=${encodeURIComponent(time)}`
+    : '${apiBase}/satellites/positions';
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET /api/satellites/positions failed: ${res.status}`);
+  if (!res.ok) throw new Error(`GET ${apiBase}/satellites/positions failed: ${res.status}`);
   return (await res.json()) as Position[];
 }
 
 /** Fetch a single satellite's forward ground track. */
 export async function fetchGroundTrack(noradId: number, periodMin?: number): Promise<GroundTrack> {
   const qs = periodMin !== undefined ? `?periodMin=${periodMin}` : '';
-  const res = await fetch(`/api/satellites/${noradId}/track${qs}`);
-  if (!res.ok) throw new Error(`GET /api/satellites/${noradId}/track failed: ${res.status}`);
+  const res = await fetch(`${apiBase}/satellites/${noradId}/track${qs}`);
+  if (!res.ok) throw new Error(`GET ${apiBase}/satellites/${noradId}/track failed: ${res.status}`);
   return (await res.json()) as GroundTrack;
 }
 
@@ -55,7 +56,7 @@ export async function fetchPasses(
     hours: String(hours),
   });
   if (observer.altMeters !== undefined) params.set('altMeters', String(observer.altMeters));
-  const res = await fetch(`/api/satellites/${noradId}/passes?${params.toString()}`);
-  if (!res.ok) throw new Error(`GET /api/satellites/${noradId}/passes failed: ${res.status}`);
+  const res = await fetch(`${apiBase}/satellites/${noradId}/passes?${params.toString()}`);
+  if (!res.ok) throw new Error(`GET ${apiBase}/satellites/${noradId}/passes failed: ${res.status}`);
   return (await res.json()) as Pass[];
 }
