@@ -48,7 +48,12 @@ export function createCelestrakClient(): CelestrakClient {
   return {
     async fetchGroup(group) {
       const url = `${CELESTRAK_GP_URL}?GROUP=${group}&FORMAT=tle`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent':
+            'orbit-ctrl/0.1.0 (portfolio; github.com/patrickkuei/Satellite-Mission-Control-Dashboard)',
+        },
+      });
       if (!res.ok) {
         throw new Error(`Celestrak GROUP=${group} failed: ${res.status} ${res.statusText}`);
       }

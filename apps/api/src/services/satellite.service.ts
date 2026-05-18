@@ -186,12 +186,19 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
   }
 }
 
-/** Fetch every supported group in parallel and flatten the result. */
+/**
+ * Fetch every supported group in parallel and flatten the result.
+ * Individual group failures are swallowed so a single 403/timeout from
+ * Celestrak doesn't bring down the whole request — we return whatever
+ * groups did succeed.
+ */
 async function fetchAllGroups(client: CelestrakClient): Promise<Satellite[]> {
-  const perGroup = await Promise.all(
+  const results = await Promise.allSettled(
     CELESTRAK_GROUPS.map((g: CelestrakGroup) => client.fetchGroup(g)),
   );
-  return perGroup.flat();
+  return results
+    .filter((r): r is PromiseFulfilledResult<Satellite[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value);
 }
 
 /**
