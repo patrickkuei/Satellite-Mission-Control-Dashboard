@@ -1114,42 +1114,30 @@
      - Catch API errors, show toast notification
 
 3. **Deployment**
-   - Frontend (Vercel):
+   - Frontend (GitHub Pages):
+     - Push to `main` — the `.github/workflows/deploy-web.yml` workflow builds
+       the Vite app and publishes `apps/web/dist` to GitHub Pages automatically.
+     - Enable Pages in the repo: **Settings → Pages → Source: GitHub Actions**.
+     - Set the `VITE_API_URL` secret (**Settings → Secrets → Actions**) to the
+       SnapDeploy URL before the first push, e.g.:
+       `https://<your-app>.snapdeploy.dev`
+     - The workflow injects `VITE_BASE_PATH=/<repo-name>/` so assets resolve
+       correctly under the sub-path GitHub Pages uses.
 
-     ```bash
-     cd apps/web
-     vercel --prod
-     ```
-
-     - Set env vars: `VITE_API_URL=https://api.orbit-ctrl.fly.dev`
-
-   - Backend (Fly.io):
-
-     ```bash
-     cd apps/api
-     fly launch
-     fly deploy
-     ```
-
-     - Configure:
-
-       ```toml
-       # fly.toml
-       [env]
-         PORT = "8080"
-
-       [[services]]
-         internal_port = 8080
-         protocol = "tcp"
-
-         [[services.ports]]
-           handlers = ["http"]
-           port = 80
-
-         [[services.ports]]
-           handlers = ["tls", "http"]
-           port = 443
+   - Backend (SnapDeploy):
+     - SnapDeploy is a Docker container host (built on AWS). The `Dockerfile`
+       at the repo root builds `apps/api` from the pnpm workspace.
+     - Connect the GitHub repo in the SnapDeploy dashboard; set the build
+       context to the repo root.
+     - Environment variables to set in the SnapDeploy dashboard:
        ```
+       PORT=3001
+       GEMINI_API_KEY=<your-key>
+       GROQ_API_KEY=<your-key>       # optional fallback
+       ANTHROPIC_API_KEY=<your-key>  # optional fallback
+       ```
+     - SnapDeploy exposes the container at `https://<your-app>.snapdeploy.dev`.
+       Copy this URL into the GitHub `VITE_API_URL` secret.
 
 4. **README documentation**
    - Update root `README.md`:
@@ -1215,7 +1203,7 @@
 
 ### Deliverable
 
-- [ ] Live URL: https://orbit-ctrl.vercel.app
+- [ ] Live URL: https://patrickkuei.github.io/Satellite-Mission-Control-Dashboard/
 - [ ] GitHub repo: public, with comprehensive README
 - ~~[ ] Demo video: 90 seconds, uploaded to YouTube~~ — skipped: see task 5 above.
 - ~~[ ] Case study: published on Medium/Dev.to~~ — skipped: see task 5 above.
@@ -1257,7 +1245,7 @@
 
 **Risk: Deployment complexity**
 
-- Mitigation: Use platforms with zero-config (Vercel, Fly.io)
+- Mitigation: GitHub Pages (zero-config via Actions) + SnapDeploy (Docker, AWS-backed)
 - Fallback: Deploy frontend only, mock backend responses
 
 ## Post-Launch

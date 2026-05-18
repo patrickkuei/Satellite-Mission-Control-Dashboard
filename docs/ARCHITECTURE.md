@@ -135,7 +135,7 @@ Tool Registry (shared interface)
   - `GET /space-weather` — current conditions
   - `POST /agent/chat` — send message to AI agent, get streaming response
 - Authentication: None for demo (add API keys in production)
-- CORS: Allow all origins for demo
+- CORS: Allow all origins for demo (required: GHP origin → SnapDeploy API)
 
 ### Layer 3.5: AI Host (in `apps/api`)
 

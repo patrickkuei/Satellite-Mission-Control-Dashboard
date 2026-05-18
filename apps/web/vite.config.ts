@@ -10,6 +10,10 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // VITE_BASE_PATH is injected by the GitHub Actions workflow so assets resolve
+  // correctly under the /<repo-name>/ sub-path that GitHub Pages uses.
+  // Falls back to '/' for local dev and SnapDeploy (where the app is at root).
+  base: process.env.VITE_BASE_PATH ?? '/',
   server: {
     port: 5173,
     proxy: {
