@@ -87,7 +87,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   server.setSerializerCompiler(serializerCompiler);
 
   // ── Plugins ──────────────────────────────────────────────────────────────
-  await server.register(cors, { origin: true });
+  await server.register(cors, { origin: '*', methods: ['GET', 'POST', 'OPTIONS'] });
   await server.register(websocket);
 
   // ── Dependency graph ─────────────────────────────────────────────────────
