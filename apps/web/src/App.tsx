@@ -23,6 +23,7 @@ import { useGroundTrack } from './hooks/useGroundTrack';
 import { useSpaceWeather } from './hooks/useSpaceWeather';
 import { usePasses } from './hooks/usePasses';
 import { useTelemetryStream } from './hooks/useTelemetryStream';
+import { useUtcClock } from './hooks/useUtcClock';
 import { useSelectedSatellite } from './stores/selectedSatellite';
 import { useObserverLocation } from './stores/observerLocation';
 import styles from './App.module.css';
@@ -42,6 +43,7 @@ export function App(): JSX.Element {
   const { data: passes = [], isFetching: passesLoading } = usePasses(selectedId, observer);
   const { latestById, historyById, alerts, state: wsState } = useTelemetryStream();
   const [chatOpen, setChatOpen] = useState(false);
+  const utcTime = useUtcClock();
 
   // Join satellites + positions into the shape Globe expects.
   const pairs = useMemo<SatelliteWithPosition[]>(
@@ -66,7 +68,7 @@ export function App(): JSX.Element {
       <header className={styles.header}>
         <span className={styles.brand}>orbit.ctrl</span>
         <span className={styles.center}>
-          tracking <strong>{pairs.length}</strong> satellites · phase 4
+          LEO · <strong>{pairs.length}</strong> objects tracked · {utcTime}
         </span>
         <span className={styles.headerRight}>
           <SpaceWeatherBadge weather={weather ?? null} />

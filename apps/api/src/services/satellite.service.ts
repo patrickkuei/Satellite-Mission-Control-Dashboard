@@ -16,7 +16,7 @@ import type { TLERepository } from '../repositories/tle.repository.js';
 import type { OrbitService } from './orbit.service.js';
 
 /** Hard cap on how many satellites the curated demo set may contain. */
-const MAX_TRACKED = 12;
+const MAX_TRACKED = 50;
 
 /**
  * Featured NORAD IDs — the satellites we want guaranteed-visible in the demo
