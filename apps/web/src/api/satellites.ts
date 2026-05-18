@@ -10,7 +10,7 @@ import { apiBase } from './config';
 
 /** Fetch the curated list of tracked satellites (one-time on app boot). */
 export async function fetchSatellites(): Promise<Satellite[]> {
-  const res = await fetch('${apiBase}/satellites');
+  const res = await fetch(`${apiBase}/satellites`);
   if (!res.ok) throw new Error(`GET ${apiBase}/satellites failed: ${res.status}`);
   return (await res.json()) as Satellite[];
 }
@@ -24,7 +24,7 @@ export async function fetchSatellites(): Promise<Satellite[]> {
 export async function fetchSatellitePositions(time?: string): Promise<Position[]> {
   const url = time
     ? `${apiBase}/satellites/positions?time=${encodeURIComponent(time)}`
-    : '${apiBase}/satellites/positions';
+    : `${apiBase}/satellites/positions`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GET ${apiBase}/satellites/positions failed: ${res.status}`);
   return (await res.json()) as Position[];
