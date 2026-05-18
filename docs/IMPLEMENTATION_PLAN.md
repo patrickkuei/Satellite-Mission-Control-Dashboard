@@ -1203,7 +1203,8 @@
 
 ### Deliverable
 
-- [ ] Live URL: https://patrickkuei.github.io/Satellite-Mission-Control-Dashboard/
+- [x] Live URL: https://patrickkuei.github.io/Satellite-Mission-Control-Dashboard/
+- [x] API URL: https://satellite-mission-control-dashboard.onrender.com
 - [ ] GitHub repo: public, with comprehensive README
 - ~~[ ] Demo video: 90 seconds, uploaded to YouTube~~ — skipped: see task 5 above.
 - ~~[ ] Case study: published on Medium/Dev.to~~ — skipped: see task 5 above.
