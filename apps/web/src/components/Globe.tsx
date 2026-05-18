@@ -152,6 +152,7 @@ export function Globe({
               : 'rgba(255, 107, 53, 0.45)') as () => string
         }
         pathStroke={((d: unknown) => (isAuroraPath(d as Position[]) ? 2.5 : 1.5)) as () => number}
+        pathTransitionDuration={0}
       />
     </div>
   );

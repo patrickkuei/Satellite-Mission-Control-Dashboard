@@ -109,6 +109,11 @@ export function AlertLog({ alerts, nameById, selectedId }: AlertLogProps): JSX.E
         <ul className={styles.list}>
           {visible.map((a) => (
             <li key={a.id} className={`${styles.row} ${styles[a.severity]}`}>
+              <span
+                className={`${styles.chip} ${a.severity === 'alert' ? styles.chip_alert : styles.chip_warn}`}
+              >
+                {a.severity === 'alert' ? 'ALRT' : 'WARN'}
+              </span>
               <span className={styles.time}>{formatTime(a.timestamp)}</span>
               <span className={styles.sat}>
                 {nameById.get(a.satelliteId) ?? `NORAD ${a.satelliteId}`}

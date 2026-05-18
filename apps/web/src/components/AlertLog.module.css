@@ -104,7 +104,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 80px 140px 1fr auto;
+  grid-template-columns: 44px 80px 140px 1fr auto;
   gap: var(--space-md);
   align-items: center;
   padding: var(--space-xs) var(--space-lg);
@@ -116,10 +116,36 @@
 
 .warn {
   border-left-color: var(--color-warning);
+  background: rgba(251, 191, 36, 0.06);
 }
 
 .alert {
   border-left-color: var(--color-danger);
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid;
+  text-align: center;
+  /* Fixed width so column never jitters between ALRT/WARN */
+  width: 36px;
+}
+
+.chip_warn {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.chip_alert {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .time {
