@@ -51,6 +51,9 @@ export const agentRoute: FastifyPluginAsync<AgentRouteOptions> = async (
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
     });
 
     try {
