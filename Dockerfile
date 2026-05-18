@@ -35,8 +35,10 @@ WORKDIR /app
 # Copy compiled output and the node_modules that were already installed in the
 # builder — avoids re-running pnpm install (and the husky prepare script).
 COPY --from=builder /repo/node_modules           node_modules/
-COPY --from=builder /repo/packages/types/dist    packages/types/dist/
-COPY --from=builder /repo/packages/tools/dist    packages/tools/dist/
+COPY --from=builder /repo/packages/types/package.json  packages/types/
+COPY --from=builder /repo/packages/types/dist          packages/types/dist/
+COPY --from=builder /repo/packages/tools/package.json  packages/tools/
+COPY --from=builder /repo/packages/tools/dist          packages/tools/dist/
 COPY --from=builder /repo/apps/api/dist          apps/api/dist/
 COPY --from=builder /repo/apps/api/node_modules  apps/api/node_modules/
 
