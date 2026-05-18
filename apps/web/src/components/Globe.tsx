@@ -43,8 +43,8 @@ export interface GlobeProps {
   groundTrack?: GroundTrack | null;
   /** Currently selected NORAD ID; rendered in the highlight colour. */
   selectedId: number | null;
-  /** Called when the user clicks a satellite point. */
-  onSelect(noradId: number): void;
+  /** Called when the user clicks a satellite point. Passes null to deselect. */
+  onSelect(noradId: number | null): void;
   /** User's ground-station location — rendered as a marker. */
   observer: ObserverLocation;
   /**
@@ -90,6 +90,11 @@ export function Globe({
     if (controls) controls.autoRotate = true;
   };
 
+  // Animate camera back to a north-up view centred on the observer location.
+  const handleHome = () => {
+    globeRef.current?.pointOfView({ lat: observer.lat, lng: observer.lon, altitude: 2.2 }, 800);
+  };
+
   // react-globe.gl falls back to window.innerWidth/Height when width/height
   // props are missing — that ignores the flex sidebar and pushes content
   // off-screen. Observe the host element instead and feed back its real size.
@@ -119,6 +124,14 @@ export function Globe({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
+      <button
+        type="button"
+        className={styles.homeBtn}
+        onClick={handleHome}
+        title="Reset view to observer location"
+      >
+        ⌂
+      </button>
       <GlobeGL
         ref={globeRef}
         width={size.w}
@@ -132,7 +145,12 @@ export function Globe({
         objectAltitude={(d) => (d as SatelliteWithPosition).position.alt / EARTH_RADIUS_KM}
         objectLabel={(d) => formatLabel(d as SatelliteWithPosition)}
         objectThreeObject={(d) => buildMesh(d as SatelliteWithPosition)}
-        onObjectClick={(d) => onSelect((d as SatelliteWithPosition).satellite.noradId)}
+        onObjectClick={(d) => {
+          const noradId = (d as SatelliteWithPosition).satellite.noradId;
+          // Toggle: clicking the already-selected satellite deselects it.
+          onSelect(noradId === selectedId ? null : noradId);
+        }}
+        onGlobeClick={() => onSelect(null)}
         pointsData={[observer]}
         pointLat={(d) => (d as ObserverLocation).lat}
         pointLng={(d) => (d as ObserverLocation).lon}
