@@ -70,6 +70,9 @@ export function Globe({
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  // Set to true inside onObjectClick / onGlobeClick so the host div's onClick
+  // handler knows the click was already handled and skips deselection.
+  const clickHandledRef = useRef(false);
 
   // ── Auto-rotate the globe on mount for a bit of "alive" feel. ───────────
   useEffect(() => {
@@ -98,14 +101,24 @@ export function Globe({
   // react-globe.gl falls back to window.innerWidth/Height when width/height
   // props are missing — that ignores the flex sidebar and pushes content
   // off-screen. Observe the host element instead and feed back its real size.
+  // Debounce 50 ms: satellite selection triggers a layout repaint that fires
+  // the observer with a transient intermediate size, causing a visible canvas
+  // flicker. The debounce collapses those rapid firings into one stable read.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const apply = () => setSize({ w: host.clientWidth, h: host.clientHeight });
+    let timer: number;
+    const apply = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setSize({ w: host.clientWidth, h: host.clientHeight }), 50);
+    };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(host);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      window.clearTimeout(timer);
+    };
   }, []);
 
   // Pre-compute the Three.js mesh factory so we don't rebuild a geometry
@@ -123,6 +136,16 @@ export function Globe({
       ref={hostRef}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onClick={() => {
+        // Deselect when clicking the panel background (outside the globe
+        // sphere). Canvas clicks bubble here too, so we skip if the click
+        // was already handled by onObjectClick / onGlobeClick.
+        if (clickHandledRef.current) {
+          clickHandledRef.current = false;
+          return;
+        }
+        onSelect(null);
+      }}
     >
       <button
         type="button"
@@ -146,11 +169,14 @@ export function Globe({
         objectLabel={(d) => formatLabel(d as SatelliteWithPosition)}
         objectThreeObject={(d) => buildMesh(d as SatelliteWithPosition)}
         onObjectClick={(d) => {
+          clickHandledRef.current = true;
           const noradId = (d as SatelliteWithPosition).satellite.noradId;
-          // Toggle: clicking the already-selected satellite deselects it.
           onSelect(noradId === selectedId ? null : noradId);
         }}
-        onGlobeClick={() => onSelect(null)}
+        onGlobeClick={() => {
+          clickHandledRef.current = true;
+          onSelect(null);
+        }}
         pointsData={[observer]}
         pointLat={(d) => (d as ObserverLocation).lat}
         pointLng={(d) => (d as ObserverLocation).lon}
