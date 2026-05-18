@@ -15,7 +15,7 @@ COPY packages/types/package.json   packages/types/
 COPY packages/tools/package.json   packages/tools/
 COPY apps/api/package.json         apps/api/
 
-RUN pnpm install --frozen-lockfile
+RUN HUSKY=0 pnpm install --frozen-lockfile
 
 # Copy source after deps are cached.
 COPY packages/types   packages/types
@@ -45,7 +45,7 @@ COPY --from=builder /repo/packages/tools/dist          packages/tools/dist/
 COPY --from=builder /repo/apps/api/package.json   apps/api/
 COPY --from=builder /repo/apps/api/dist           apps/api/dist/
 
-RUN pnpm install --frozen-lockfile --prod
+RUN HUSKY=0 pnpm install --frozen-lockfile --prod
 
 WORKDIR /app/apps/api
 
