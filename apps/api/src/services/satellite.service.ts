@@ -98,17 +98,28 @@ export interface SatelliteService {
  */
 export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteService {
   let memoCache: Satellite[] | null = null;
+  // Shared in-flight promise: if the prefetch and a concurrent request both call
+  // ensureLoaded before the first fetch completes, they share one Celestrak round-trip
+  // rather than issuing two parallel fetches (which wastes quota and risks rate-limits).
+  let loadingPromise: Promise<Satellite[]> | null = null;
 
   async function ensureLoaded(): Promise<Satellite[]> {
-    // Strict null check — an empty array [] is truthy, so `if (memoCache)` would
-    // permanently cache a failed load (all-403 from Celestrak) and never retry.
+    // Strict null check — [] is truthy, so `if (memoCache)` would permanently
+    // cache a failed load and never retry.
     if (memoCache !== null) return memoCache;
-    const loaded = await loadFromCacheOrFetch(deps);
-    // Only commit to memoCache if we actually got satellites. An empty result
-    // means every Celestrak group failed; leave memoCache null so the next
-    // request retries rather than serving a permanently empty list.
-    if (loaded.length > 0) memoCache = loaded;
-    return loaded;
+    if (loadingPromise) return loadingPromise;
+    loadingPromise = loadFromCacheOrFetch(deps)
+      .then((loaded) => {
+        if (loaded.length > 0) memoCache = loaded;
+        loadingPromise = null;
+        return loaded;
+      })
+      .catch((err: unknown) => {
+        // Clear the in-flight reference so the next call retries.
+        loadingPromise = null;
+        throw err;
+      });
+    return loadingPromise;
   }
 
   async function findSatellite(noradId: number): Promise<Satellite> {

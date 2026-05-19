@@ -170,13 +170,14 @@ export async function buildServer(): Promise<FastifyInstance> {
     });
   }
 
-  // Pre-warm the TLE cache before accepting traffic so the first client request
-  // is served from memory, not blocked on a Celestrak round-trip. Especially
-  // important on Render free tier where the process restarts after idle.
-  server.addHook('onReady', async () => {
-    await satelliteService
+  // Fire-and-forget TLE prefetch: start warming the cache before traffic arrives
+  // but don't block server startup. Celestrak can take >10 s on a cold Render
+  // instance, which exceeds Fastify's onReady hook timeout (FST_ERR_HOOK_TIMEOUT).
+  server.addHook('onReady', (done) => {
+    void satelliteService
       .list()
       .catch((err: Error) => server.log.warn(`TLE prefetch failed: ${err.message}`));
+    done();
   });
 
   // ── Routes ───────────────────────────────────────────────────────────────
