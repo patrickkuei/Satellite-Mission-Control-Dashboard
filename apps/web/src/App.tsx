@@ -33,7 +33,12 @@ const Globe = lazy(() => import('./components/Globe').then((m) => ({ default: m.
 
 export function App(): JSX.Element {
   const { data: health, error: healthError } = useApiHealth();
-  const { data: satellites = [] } = useSatellites();
+  const {
+    data: satellites = [],
+    isPending: satellitesPending,
+    isError: satellitesError,
+    refetch: refetchSatellites,
+  } = useSatellites();
   const { data: positions = [] } = useSatellitePositions();
   const { data: weather } = useSpaceWeather();
   const selectedId = useSelectedSatellite((s) => s.selectedId);
@@ -68,7 +73,8 @@ export function App(): JSX.Element {
       <header className={styles.header}>
         <span className={styles.brand}>orbit.ctrl</span>
         <span className={styles.center}>
-          LEO · <strong>{pairs.length}</strong> objects tracked · {utcTime}
+          LEO · <strong>{pairs.length > 0 ? pairs.length : satellitesPending ? '…' : '—'}</strong>{' '}
+          objects tracked · {utcTime}
         </span>
         <span className={styles.headerRight}>
           <SpaceWeatherBadge weather={weather ?? null} />
@@ -86,6 +92,18 @@ export function App(): JSX.Element {
       {wsState !== 'open' && (
         <div className={styles.reconnectBanner}>
           {wsState === 'connecting' ? 'reconnecting telemetry…' : 'telemetry offline'}
+        </div>
+      )}
+      {satellitesError && satellites.length === 0 && (
+        <div className={styles.wakeupBanner}>
+          API server is offline or still waking up —{' '}
+          <button
+            type="button"
+            className={styles.wakeupRetry}
+            onClick={() => void refetchSatellites()}
+          >
+            retry
+          </button>
         </div>
       )}
       <section className={styles.stage}>

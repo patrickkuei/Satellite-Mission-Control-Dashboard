@@ -101,3 +101,31 @@
   letter-spacing: 0.06em;
   text-align: center;
 }
+
+.wakeupBanner {
+  flex: 0 0 auto;
+  padding: 4px var(--space-xl);
+  background: rgba(100, 149, 237, 0.08);
+  border-bottom: 1px solid cornflowerblue;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: cornflowerblue;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.wakeupRetry {
+  background: none;
+  border: 1px solid cornflowerblue;
+  color: cornflowerblue;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 0 6px;
+  cursor: pointer;
+  border-radius: 2px;
+  letter-spacing: 0.06em;
+}
+
+.wakeupRetry:hover {
+  background: rgba(100, 149, 237, 0.15);
+}
