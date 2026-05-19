@@ -100,9 +100,15 @@ export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteSer
   let memoCache: Satellite[] | null = null;
 
   async function ensureLoaded(): Promise<Satellite[]> {
-    if (memoCache) return memoCache;
-    memoCache = await loadFromCacheOrFetch(deps);
-    return memoCache;
+    // Strict null check — an empty array [] is truthy, so `if (memoCache)` would
+    // permanently cache a failed load (all-403 from Celestrak) and never retry.
+    if (memoCache !== null) return memoCache;
+    const loaded = await loadFromCacheOrFetch(deps);
+    // Only commit to memoCache if we actually got satellites. An empty result
+    // means every Celestrak group failed; leave memoCache null so the next
+    // request retries rather than serving a permanently empty list.
+    if (loaded.length > 0) memoCache = loaded;
+    return loaded;
   }
 
   async function findSatellite(noradId: number): Promise<Satellite> {
@@ -167,18 +173,26 @@ export class SatelliteNotFoundError extends Error {
  */
 async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satellite[]> {
   const stored = await deps.repository.read();
-  if (stored && deps.repository.isFresh(stored)) {
+  // A fresh but empty cache means a previous bad run wrote it — treat as stale
+  // so we always attempt a real Celestrak fetch when there's no usable data.
+  if (stored && deps.repository.isFresh(stored) && stored.satellites.length > 0) {
     deps.logger.info(`tle-cache hit (${stored.satellites.length} satellites)`);
     return stored.satellites;
   }
   try {
     const fresh = await fetchAllGroups(deps.celestrak);
     const curated = curate(fresh);
-    await deps.repository.write(curated);
-    deps.logger.info(`tle-cache refreshed (${curated.length} satellites)`);
+    // Only persist a non-empty result — an empty curated list would poison the
+    // disk cache and be served as "fresh" on the next cold start.
+    if (curated.length > 0) {
+      await deps.repository.write(curated);
+      deps.logger.info(`tle-cache refreshed (${curated.length} satellites)`);
+    }
     return curated;
   } catch (err) {
-    if (stored) {
+    // Fall back to any stored cache (even stale) when Celestrak is unreachable.
+    // Prefer a non-empty stale cache over nothing.
+    if (stored && stored.satellites.length > 0) {
       deps.logger.warn(`celestrak fetch failed, serving stale cache: ${(err as Error).message}`);
       return stored.satellites;
     }
@@ -188,17 +202,26 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
 
 /**
  * Fetch every supported group in parallel and flatten the result.
- * Individual group failures are swallowed so a single 403/timeout from
- * Celestrak doesn't bring down the whole request — we return whatever
- * groups did succeed.
+ * Individual group failures are tolerated — a single 403/timeout won't
+ * abort the whole sync. But if *every* group fails we throw so the caller
+ * can fall back to a stale cache rather than caching an empty list.
+ *
+ * @throws When all groups fail (total Celestrak outage / rate-limit).
  */
 async function fetchAllGroups(client: CelestrakClient): Promise<Satellite[]> {
   const results = await Promise.allSettled(
     CELESTRAK_GROUPS.map((g: CelestrakGroup) => client.fetchGroup(g)),
   );
-  return results
-    .filter((r): r is PromiseFulfilledResult<Satellite[]> => r.status === 'fulfilled')
-    .flatMap((r) => r.value);
+  const fulfilled = results.filter(
+    (r): r is PromiseFulfilledResult<Satellite[]> => r.status === 'fulfilled',
+  );
+  if (fulfilled.length === 0) {
+    const reasons = results
+      .map((r) => (r.status === 'rejected' ? String(r.reason) : ''))
+      .join('; ');
+    throw new Error(`All Celestrak groups failed: ${reasons}`);
+  }
+  return fulfilled.flatMap((r) => r.value);
 }
 
 /**

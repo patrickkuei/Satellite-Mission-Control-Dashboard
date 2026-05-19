@@ -170,6 +170,15 @@ export async function buildServer(): Promise<FastifyInstance> {
     });
   }
 
+  // Pre-warm the TLE cache before accepting traffic so the first client request
+  // is served from memory, not blocked on a Celestrak round-trip. Especially
+  // important on Render free tier where the process restarts after idle.
+  server.addHook('onReady', async () => {
+    await satelliteService
+      .list()
+      .catch((err: Error) => server.log.warn(`TLE prefetch failed: ${err.message}`));
+  });
+
   // ── Routes ───────────────────────────────────────────────────────────────
   await server.register(healthRoute, { controller: healthController });
   await server.register(satelliteRoute, { controller: satelliteController });
