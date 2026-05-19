@@ -19,6 +19,7 @@
  */
 import type { LLMProvider, NormalizedMessage, NormalizedTool } from '../clients/llm-provider.js';
 import type { Tool } from '@orbit-ctrl/tools';
+import { TOOL_NAMES } from '@orbit-ctrl/tools';
 import type { ToolBroker } from './tool-broker.js';
 
 /** Hard cap on tool-hop chains. Stops runaway loops if the model never gets `end_turn`. */
@@ -35,16 +36,21 @@ const HISTORY_WINDOW = 6;
 /**
  * One event yielded by {@link AgentService.chat}.
  *
- * - `text`       — incremental assistant text; concatenate to render.
- * - `tool_start` — broker is about to dispatch a tool call.
- * - `tool_end`   — tool call completed (success or error).
- * - `error`      — fatal: orchestrator gave up (e.g., self-correction cap hit).
- * - `done`       — final event of the stream, always last.
+ * - `text`             — incremental assistant text; concatenate to render.
+ * - `tool_start`       — broker is about to dispatch a tool call.
+ * - `tool_end`         — tool call completed (success or error).
+ * - `select_satellite` — emitted after a satellite-specific tool succeeds; the
+ *                        frontend should highlight this NORAD ID on the globe.
+ *                        Only consumed by the browser SSE client — MCP stdio
+ *                        transport never sees this event.
+ * - `error`            — fatal: orchestrator gave up (e.g., self-correction cap hit).
+ * - `done`             — final event of the stream, always last.
  */
 export type AgentEvent =
   | { type: 'text'; delta: string }
   | { type: 'tool_start'; name: string }
   | { type: 'tool_end'; name: string; isError: boolean }
+  | { type: 'select_satellite'; noradId: number }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
@@ -248,6 +254,49 @@ async function summariseHistory(turns: ConversationTurn[], llm: LLMProvider): Pr
 }
 
 /**
+ * Tools that operate on a single named satellite and whose result should
+ * trigger a globe selection event. `find_satellites_above` and
+ * `get_space_weather` are intentionally excluded — they are not satellite-specific.
+ */
+const SATELLITE_SPECIFIC_TOOLS = new Set<string>([
+  TOOL_NAMES.GET_SATELLITE_POSITION,
+  TOOL_NAMES.PREDICT_PASSES,
+  TOOL_NAMES.GET_SATELLITE_TELEMETRY,
+  TOOL_NAMES.GET_ANOMALIES,
+]);
+
+/**
+ * Try to extract a NORAD ID from a JSON tool result string.
+ *
+ * Handles three shapes returned by satellite-specific tools:
+ * - `{ noradId: number }` — get_satellite_position (augmented by agent-tools)
+ * - `{ satelliteId: number }` — get_satellite_telemetry, get_anomalies items
+ * - `[{ satelliteId: number }, ...]` — predict_passes array
+ *
+ * Returns `null` on parse failure or missing field so the caller can skip
+ * without crashing the stream.
+ *
+ * @param content - Raw JSON string from the tool broker.
+ */
+function extractNoradId(content: string): number | null {
+  try {
+    const data = JSON.parse(content) as unknown;
+    if (typeof data === 'object' && data !== null) {
+      const obj = data as Record<string, unknown>;
+      if (typeof obj.noradId === 'number') return obj.noradId;
+      if (typeof obj.satelliteId === 'number') return obj.satelliteId;
+    }
+    if (Array.isArray(data) && data.length > 0) {
+      const first = data[0] as Record<string, unknown>;
+      if (typeof first.satelliteId === 'number') return first.satelliteId;
+    }
+  } catch {
+    // Malformed JSON — skip silently.
+  }
+  return null;
+}
+
+/**
  * Dispatch every buffered tool call through the broker, appending each
  * result as a `role: 'tool'` message and yielding `tool_start` / `tool_end`
  * events for the UI. Returns whether any call failed (so the outer loop
@@ -276,6 +325,13 @@ async function* dispatchToolCalls(
     }
 
     yield { type: 'tool_end', name: call.name, isError: result.isError };
+
+    // Signal the browser to highlight the relevant satellite on the globe.
+    if (!result.isError && SATELLITE_SPECIFIC_TOOLS.has(call.name)) {
+      const noradId = extractNoradId(result.content);
+      if (noradId !== null) yield { type: 'select_satellite', noradId };
+    }
+
     messages.push({
       role: 'tool',
       content: result.content,

@@ -42,7 +42,10 @@ export function createAgentToolRegistry(deps: AgentToolsDeps): Tool[] {
       const name = requireString(input, 'name');
       const sat = await findByName(deps.satellite, name);
       const time = parseOptionalDate(input.time);
-      return deps.satellite.positionOf(sat.noradId, time);
+      const position = await deps.satellite.positionOf(sat.noradId, time);
+      // Include noradId so the SSE select_satellite event can identify the satellite.
+      // PositionSchema does not carry it; we add it here for the agent result only.
+      return { noradId: sat.noradId, ...position };
     },
 
     [TOOL_NAMES.PREDICT_PASSES]: async (input) => {

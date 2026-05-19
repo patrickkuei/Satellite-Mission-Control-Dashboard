@@ -12,6 +12,7 @@
  * align with `TextDecoder` chunk boundaries.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSelectedSatellite } from '../stores/selectedSatellite';
 
 /** Visible message in the chat transcript. */
 export interface ChatMessage {
@@ -31,6 +32,7 @@ type AgentEvent =
   | { type: 'text'; delta: string }
   | { type: 'tool_start'; name: string }
   | { type: 'tool_end'; name: string; isError: boolean }
+  | { type: 'select_satellite'; noradId: number }
   | { type: 'error'; message: string }
   | { type: 'done' };
 
@@ -276,6 +278,11 @@ function applyEvent(
   setThinking: React.Dispatch<React.SetStateAction<boolean>>,
 ): void {
   if (evt.type === 'done') return;
+  // Highlight the relevant satellite on the globe without touching message state.
+  if (evt.type === 'select_satellite') {
+    useSelectedSatellite.getState().setSelected(evt.noradId);
+    return;
+  }
   // Any content arriving means the LLM is no longer in a silent gap.
   if (evt.type === 'text' || evt.type === 'tool_start') setThinking(false);
   // After a tool ends, LLM enters another silent gap before the next turn.
