@@ -108,6 +108,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     celestrak: celestrakClient,
     repository: tleRepository,
     orbit: orbitService,
+    snapshotUrl: process.env.SNAPSHOT_URL,
     logger: {
       info: (msg) => server.log.info(msg),
       warn: (msg) => server.log.warn(msg),

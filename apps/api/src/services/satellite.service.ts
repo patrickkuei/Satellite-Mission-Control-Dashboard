@@ -36,6 +36,12 @@ export interface SatelliteServiceDeps {
   repository: TLERepository;
   orbit: OrbitService;
   logger: SatelliteServiceLogger;
+  /**
+   * URL of the remote TLE snapshot (e.g. GH Pages or object storage).
+   * Fetched as a last resort when Celestrak and the disk cache both fail.
+   * In production this would point to S3/GCS updated by a data pipeline.
+   */
+  snapshotUrl?: string;
 }
 
 /** One entry in the list returned by {@link SatelliteService.findAbove}. */
@@ -166,10 +172,11 @@ export class SatelliteNotFoundError extends Error {
 }
 
 /**
- * Load satellite data using a three-level fallback chain:
+ * Load satellite data using a four-level fallback chain:
  *   1. Fresh disk cache (within 24 h TTL, non-empty)
  *   2. Live Celestrak fetch → write to disk cache
  *   3. Stale disk cache → any age, if Celestrak fails
+ *   4. Remote snapshot (`snapshotUrl`) — GH Pages in demo, object storage in prod
  *
  * Throws when all sources fail — callers should surface a 503 rather than
  * return an empty list, so the frontend's retry logic can fire correctly.
@@ -193,12 +200,34 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
     const msg = (err as Error).message;
 
     if (stored && stored.satellites.length > 0) {
-      deps.logger.warn(`celestrak fetch failed, serving stale cache: ${msg}`);
+      deps.logger.warn(`Celestrak failed, serving stale cache: ${msg}`);
       return stored.satellites;
+    }
+
+    if (deps.snapshotUrl) {
+      const snapshot = await fetchRemoteSnapshot(deps.snapshotUrl).catch(() => null);
+      if (snapshot && snapshot.length > 0) {
+        deps.logger.warn(`Celestrak failed, serving remote snapshot (${deps.snapshotUrl}): ${msg}`);
+        return snapshot;
+      }
     }
 
     throw new Error(`No satellite data available: ${msg}`);
   }
+}
+
+/**
+ * Fetch and parse the remote TLE snapshot. The snapshot shape mirrors the
+ * file written by `scripts/fetch-tle-snapshot.mjs`:
+ * `{ fetchedAt: string; satellites: Satellite[] }`.
+ *
+ * @param url - Full URL to the snapshot JSON (GH Pages, S3, GCS, etc.).
+ */
+async function fetchRemoteSnapshot(url: string): Promise<Satellite[]> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`Snapshot fetch failed: ${res.status}`);
+  const payload = (await res.json()) as { satellites: Satellite[] };
+  return payload.satellites ?? [];
 }
 
 /**
