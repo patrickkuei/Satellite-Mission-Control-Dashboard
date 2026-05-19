@@ -46,7 +46,13 @@
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+.globeWrapper {
+  flex: 1;
   position: relative;
+  min-height: 0;
+  min-width: 0;
 }
 
 .chatToggle {

@@ -31,7 +31,7 @@ export async function fetchSatellites(): Promise<SatellitesResult> {
     const satellites = (await res.json()) as Satellite[];
     return { satellites, stale: false };
   } catch {
-    const snap = await fetch('/satellites-snapshot.json');
+    const snap = await fetch(`${import.meta.env.BASE_URL}satellites-snapshot.json`);
     if (!snap.ok) throw new Error('Satellite data unavailable: API and snapshot both unreachable');
     const payload = (await snap.json()) as { fetchedAt: string; satellites: Satellite[] };
     return { satellites: payload.satellites, stale: true, fetchedAt: payload.fetchedAt };

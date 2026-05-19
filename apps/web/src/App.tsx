@@ -114,17 +114,19 @@ export function App(): JSX.Element {
         </div>
       )}
       <section className={styles.stage}>
-        <Suspense fallback={<GlobeSkeleton />}>
-          <Globe
-            satellites={pairs}
-            groundTrack={groundTrack ?? null}
-            selectedId={selectedId}
-            onSelect={setSelected}
-            observer={observer}
-            kpIndex={weather?.kpIndex ?? null}
-          />
-        </Suspense>
-        <StatusConsole wsState={wsState} />
+        <div className={styles.globeWrapper}>
+          <Suspense fallback={<GlobeSkeleton />}>
+            <Globe
+              satellites={pairs}
+              groundTrack={groundTrack ?? null}
+              selectedId={selectedId}
+              onSelect={setSelected}
+              observer={observer}
+              kpIndex={weather?.kpIndex ?? null}
+            />
+          </Suspense>
+          <StatusConsole wsState={wsState} />
+        </div>
         <SatelliteDetail
           data={selectedPair}
           passes={passes}

@@ -24,8 +24,10 @@ interface StatusLine {
   status: LineStatus;
 }
 
-/** How long (ms) to keep the console visible after all lines go nominal. */
-const FADE_DELAY_MS = 5_000;
+/** How long (ms) to stay fully visible after all lines go nominal before fading. */
+const LINGER_MS = 5_000;
+/** Duration of the CSS opacity fade (must match StatusConsole.module.css transition). */
+const FADE_MS = 1_000;
 
 /**
  * @example
@@ -68,22 +70,28 @@ export function StatusConsole({ wsState }: StatusConsoleProps): JSX.Element | nu
 
   useEffect(() => {
     if (anyDegraded) {
-      // Something is degraded — show immediately, cancel any pending fade.
+      // Something degraded — show immediately, cancel any pending fade.
       if (fadeTimerRef.current !== null) {
         clearTimeout(fadeTimerRef.current);
         fadeTimerRef.current = null;
       }
       setFading(false);
       setVisible(true);
-    } else if (visible) {
-      // All nominal and currently visible — start fade-out countdown.
+      return;
+    }
+
+    if (!visible) return;
+
+    // All nominal and currently visible — linger at full opacity, then fade.
+    fadeTimerRef.current = setTimeout(() => {
       setFading(true);
+      // Remove from DOM after CSS transition completes.
       fadeTimerRef.current = setTimeout(() => {
         setVisible(false);
         setFading(false);
         fadeTimerRef.current = null;
-      }, FADE_DELAY_MS);
-    }
+      }, FADE_MS);
+    }, LINGER_MS);
 
     return () => {
       if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current);
