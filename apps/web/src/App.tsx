@@ -29,6 +29,7 @@ import { useUtcClock } from './hooks/useUtcClock';
 import { useSelectedSatellite } from './stores/selectedSatellite';
 import { useObserverLocation } from './stores/observerLocation';
 import { useSystemStatus } from './stores/systemStatus';
+import { propagateAll } from './utils/sgp4';
 import styles from './App.module.css';
 
 // Lazy-load the Globe so Three.js (~1 MB) doesn't block the initial paint.
@@ -45,7 +46,24 @@ export function App(): JSX.Element {
   const { setServerDown, setSatellitesStale } = useSystemStatus();
 
   const satellites = satellitesResult?.satellites ?? [];
-  const { data: positions = [] } = useSatellitePositions();
+  const satellitesStale = satellitesResult?.stale ?? false;
+
+  // When server is down, stop polling the positions endpoint and compute
+  // positions client-side from TLE at 1 Hz using satellite.js.
+  const { data: livePositions = [] } = useSatellitePositions(serverDown ? 0 : 1000);
+  const [clientPositions, setClientPositions] = useState<import('@orbit-ctrl/types').Position[]>(
+    [],
+  );
+  useEffect(() => {
+    if (!satellitesStale || satellites.length === 0) {
+      setClientPositions([]);
+      return;
+    }
+    setClientPositions(propagateAll(satellites));
+    const id = setInterval(() => setClientPositions(propagateAll(satellites)), 1000);
+    return () => clearInterval(id);
+  }, [satellitesStale, satellites]);
+  const positions = satellitesStale ? clientPositions : livePositions;
   const { data: weather } = useSpaceWeather();
   const selectedId = useSelectedSatellite((s) => s.selectedId);
   const setSelected = useSelectedSatellite((s) => s.setSelected);

@@ -23,14 +23,20 @@ const DEFAULT_POLL_MS = 1000;
  * return <Globe objectsData={positions} />;
  * ```
  */
+/**
+ * @param pollMs - Poll interval in ms. Pass `0` to pause polling (e.g. when
+ *                 server is down and positions are computed client-side).
+ */
 export function useSatellitePositions(
   pollMs: number = DEFAULT_POLL_MS,
 ): UseQueryResult<Position[]> {
   return useQuery({
     queryKey: ['satellites', 'positions'],
     queryFn: () => fetchSatellitePositions(),
-    refetchInterval: pollMs,
+    // false disables polling; TanStack Query treats 0 as false for refetchInterval.
+    refetchInterval: pollMs > 0 ? pollMs : false,
     refetchIntervalInBackground: false,
     staleTime: 0,
+    enabled: pollMs > 0,
   });
 }

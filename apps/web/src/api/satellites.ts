@@ -26,7 +26,9 @@ export interface SatellitesResult {
  */
 export async function fetchSatellites(): Promise<SatellitesResult> {
   try {
-    const res = await fetch(`${apiBase}/satellites`);
+    // 8 s timeout — fast enough to show snapshot before a Render cold-start
+    // hangs, long enough to survive a slow but responsive server.
+    const res = await fetch(`${apiBase}/satellites`, { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) throw new Error(`${res.status}`);
     const satellites = (await res.json()) as Satellite[];
     return { satellites, stale: false };

@@ -32,8 +32,9 @@ export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
 
   addToast(message) {
-    // Status console owns the server-down window; suppress toasts then to avoid duplication.
-    if (useSystemStatus.getState().serverDown) return;
+    // Status console owns degraded-state UX; suppress toasts to avoid duplication.
+    const { serverDown, satellitesStale } = useSystemStatus.getState();
+    if (serverDown || satellitesStale) return;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     set((s) => ({ toasts: [...s.toasts, { id, message, kind: 'error' }] }));
     window.setTimeout(() => {
