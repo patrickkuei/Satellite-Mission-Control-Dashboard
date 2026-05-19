@@ -115,8 +115,8 @@ importers:
         specifier: ^3.8.1
         version: 3.8.1(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react-is@16.13.1)(react@18.3.1)(redux@5.0.1)
       satellite.js:
-        specifier: ^7.0.0
-        version: 7.0.0
+        specifier: ^4.1.4
+        version: 4.1.4
       three:
         specifier: ^0.184.0
         version: 0.184.0
@@ -2597,6 +2597,9 @@ packages:
 
   safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+
+  satellite.js@4.1.4:
+    resolution: {integrity: sha512-OGUrs1GoGKjy9FYbW2ZaM5slaPfJaYrcxjE3YQTeR/OGyFPCxb6HK22Chao55POU06pdmNAdW5rtKJURse0+XA==}
 
   satellite.js@7.0.0:
     resolution: {integrity: sha512-jrWZBytZgpzcfWpny6jsV7/StWKmie6JlDNpQ53RjbIXVDJPleQw8y+Cs/ZXaPIs720NFgQQLyvqYTbpsBTXKg==}
@@ -5419,6 +5422,8 @@ snapshots:
   safe-stable-stringify@2.5.0: {}
 
   safer-buffer@2.1.2: {}
+
+  satellite.js@4.1.4: {}
 
   satellite.js@7.0.0: {}
 
