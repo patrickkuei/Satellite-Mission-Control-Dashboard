@@ -1,0 +1,35 @@
+name: Update TLE snapshot
+
+on:
+  schedule:
+    # Every 2 days at 02:00 UTC. TLE accuracy degrades after ~2-3 days;
+    # weekly would leave stale orbital elements that drift visibly on the globe.
+    - cron: '0 2 */2 * *'
+  # Manual trigger for bootstrapping or emergency refresh.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch TLE snapshot from Celestrak
+        run: node scripts/fetch-tle-snapshot.mjs
+
+      - name: Commit snapshot if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add apps/api/data/satellites-snapshot.json
+          git diff --staged --quiet && echo "No changes." || (
+            git commit -m "chore(data): refresh TLE snapshot $(date -u +%Y-%m-%d)" &&
+            git push
+          )

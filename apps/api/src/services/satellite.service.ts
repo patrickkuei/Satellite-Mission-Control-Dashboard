@@ -44,6 +44,14 @@ export interface SatelliteServiceDeps {
   repository: TLERepository;
   orbit: OrbitService;
   logger: SatelliteServiceLogger;
+  /**
+   * Optional read-only repository pointing at the committed TLE snapshot
+   * (`apps/api/data/satellites-snapshot.json`). Used as a last-resort fallback
+   * when both Celestrak and the runtime disk cache are unavailable — e.g. on a
+   * fresh Render deploy whose egress IP is temporarily blocked by Celestrak.
+   * Refreshed every 2 days by the `update-tle-snapshot` GitHub Actions workflow.
+   */
+  snapshotRepository?: Pick<TLERepository, 'read'>;
 }
 
 /** One entry in the list returned by {@link SatelliteService.findAbove}. */
@@ -201,16 +209,28 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
     }
     return curated;
   } catch (err) {
-    // Fall back to any stored cache (even stale) when Celestrak is unreachable.
+    const msg = (err as Error).message;
+    // Fallback 1: stale runtime disk cache (same Render instance, any age).
     if (stored && stored.satellites.length > 0) {
-      deps.logger.warn(`celestrak fetch failed, serving stale cache: ${(err as Error).message}`);
+      deps.logger.warn(`celestrak fetch failed, serving stale cache: ${msg}`);
       return stored.satellites;
     }
-    // No usable cache at all — return empty rather than throwing a 500.
-    // The frontend retries via useSatellites (retry: 8), so it will recover
-    // once Celestrak becomes reachable. Throwing here kills the HTTP request
-    // entirely, which is worse than a transient empty response.
-    deps.logger.warn(`celestrak fetch failed, no cache available: ${(err as Error).message}`);
+    // Fallback 2: committed snapshot bundled in the Docker image.
+    // Refreshed every 2 days by the update-tle-snapshot GitHub Actions workflow
+    // from GitHub runner IPs, which are not rate-limited by Celestrak.
+    if (deps.snapshotRepository) {
+      const snapshot = await deps.snapshotRepository.read().catch(() => null);
+      if (snapshot && snapshot.satellites.length > 0) {
+        deps.logger.warn(
+          `celestrak fetch failed, serving bundled snapshot (${snapshot.satellites.length} sats, fetched ${snapshot.fetchedAt}): ${msg}`,
+        );
+        return snapshot.satellites;
+      }
+    }
+    // No data at all — return empty so the API responds 200 rather than 500.
+    // Frontend retries via useSatellites (retry: 8) and recovers once Celestrak
+    // becomes reachable.
+    deps.logger.warn(`celestrak fetch failed, no fallback available: ${msg}`);
     return [];
   }
 }
