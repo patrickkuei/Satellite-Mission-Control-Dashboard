@@ -265,3 +265,13 @@
   color: var(--color-text-tertiary);
   cursor: not-allowed;
 }
+
+.agentOffline {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  text-align: center;
+  padding: 0.35rem var(--space-lg);
+  border-top: 1px solid var(--color-border-tertiary);
+}

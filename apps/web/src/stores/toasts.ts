@@ -6,6 +6,7 @@
  * rather than a hook.
  */
 import { create } from 'zustand';
+import { useSystemStatus } from './systemStatus';
 
 export interface Toast {
   /** Unique key — used as React list key and for dedup. */
@@ -31,6 +32,8 @@ export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
 
   addToast(message) {
+    // Status console owns the server-down window; suppress toasts then to avoid duplication.
+    if (useSystemStatus.getState().serverDown) return;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     set((s) => ({ toasts: [...s.toasts, { id, message, kind: 'error' }] }));
     window.setTimeout(() => {

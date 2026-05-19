@@ -4,10 +4,9 @@
  * HTTP layer.
  *
  * Curation lives here rather than in the client because it's a product
- * decision, not a transport detail: we want a *small* curated set of
- * satellites for the demo (ISS, Hubble, a handful of Starlinks) — not
- * thousands. If the curated NORAD IDs aren't found in the upstream response,
- * we pad with whatever Celestrak returned so the globe is never empty.
+ * decision, not a transport detail: we want a small curated set of satellites
+ * for the demo, not thousands. Featured NORAD IDs are prioritised; the rest
+ * of the cap is filled from whatever Celestrak returned.
  */
 import type { GroundTrack, ObserverLocation, Pass, Position, Satellite } from '@orbit-ctrl/types';
 import type { CelestrakClient, CelestrakGroup } from '../clients/celestrak.client.js';
@@ -15,15 +14,8 @@ import { CELESTRAK_GROUPS } from '../clients/celestrak.client.js';
 import type { TLERepository } from '../repositories/tle.repository.js';
 import type { OrbitService } from './orbit.service.js';
 
-/** Hard cap on how many satellites the curated demo set may contain. */
 const MAX_TRACKED = 50;
 
-/**
- * Featured NORAD IDs — the satellites we want guaranteed-visible in the demo
- * if Celestrak returns them. Order is irrelevant. Starlink IDs are sampled
- * from the most-recent published batches; if they re-enter we'll fall back
- * to the padding logic below.
- */
 const FEATURED_NORAD_IDS: ReadonlySet<number> = new Set([
   25544, // ISS (ZARYA)
   20580, // Hubble Space Telescope
@@ -44,14 +36,6 @@ export interface SatelliteServiceDeps {
   repository: TLERepository;
   orbit: OrbitService;
   logger: SatelliteServiceLogger;
-  /**
-   * Optional read-only repository pointing at the committed TLE snapshot
-   * (`apps/api/data/satellites-snapshot.json`). Used as a last-resort fallback
-   * when both Celestrak and the runtime disk cache are unavailable — e.g. on a
-   * fresh Render deploy whose egress IP is temporarily blocked by Celestrak.
-   * Refreshed every 2 days by the `update-tle-snapshot` GitHub Actions workflow.
-   */
-  snapshotRepository?: Pick<TLERepository, 'read'>;
 }
 
 /** One entry in the list returned by {@link SatelliteService.findAbove}. */
@@ -106,14 +90,11 @@ export interface SatelliteService {
  */
 export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteService {
   let memoCache: Satellite[] | null = null;
-  // Shared in-flight promise: if the prefetch and a concurrent request both call
-  // ensureLoaded before the first fetch completes, they share one Celestrak round-trip
-  // rather than issuing two parallel fetches (which wastes quota and risks rate-limits).
+  // Shared promise so concurrent callers (e.g. the onReady prefetch + first
+  // request) share one Celestrak round-trip instead of issuing duplicates.
   let loadingPromise: Promise<Satellite[]> | null = null;
 
   async function ensureLoaded(): Promise<Satellite[]> {
-    // Strict null check — [] is truthy, so `if (memoCache)` would permanently
-    // cache a failed load and never retry.
     if (memoCache !== null) return memoCache;
     if (loadingPromise) return loadingPromise;
     loadingPromise = loadFromCacheOrFetch(deps)
@@ -123,7 +104,6 @@ export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteSer
         return loaded;
       })
       .catch((err: unknown) => {
-        // Clear the in-flight reference so the next call retries.
         loadingPromise = null;
         throw err;
       });
@@ -186,23 +166,24 @@ export class SatelliteNotFoundError extends Error {
 }
 
 /**
- * Read the cache if fresh, otherwise fetch from Celestrak, curate, and
- * persist before returning. Network failures fall back to a stale cache
- * (with a warning) so the demo can still load offline-ish.
+ * Load satellite data using a three-level fallback chain:
+ *   1. Fresh disk cache (within 24 h TTL, non-empty)
+ *   2. Live Celestrak fetch → write to disk cache
+ *   3. Stale disk cache → any age, if Celestrak fails
+ *
+ * Throws when all sources fail — callers should surface a 503 rather than
+ * return an empty list, so the frontend's retry logic can fire correctly.
  */
 async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satellite[]> {
   const stored = await deps.repository.read();
-  // A fresh but empty cache means a previous bad run wrote it — treat as stale
-  // so we always attempt a real Celestrak fetch when there's no usable data.
   if (stored && deps.repository.isFresh(stored) && stored.satellites.length > 0) {
     deps.logger.info(`tle-cache hit (${stored.satellites.length} satellites)`);
     return stored.satellites;
   }
+
   try {
     const fresh = await fetchAllGroups(deps.celestrak);
     const curated = curate(fresh);
-    // Only persist a non-empty result — an empty curated list would poison the
-    // disk cache and be served as "fresh" on the next cold start.
     if (curated.length > 0) {
       await deps.repository.write(curated);
       deps.logger.info(`tle-cache refreshed (${curated.length} satellites)`);
@@ -210,38 +191,19 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
     return curated;
   } catch (err) {
     const msg = (err as Error).message;
-    // Fallback 1: stale runtime disk cache (same Render instance, any age).
+
     if (stored && stored.satellites.length > 0) {
       deps.logger.warn(`celestrak fetch failed, serving stale cache: ${msg}`);
       return stored.satellites;
     }
-    // Fallback 2: committed snapshot bundled in the Docker image.
-    // Refreshed every 2 days by the update-tle-snapshot GitHub Actions workflow
-    // from GitHub runner IPs, which are not rate-limited by Celestrak.
-    if (deps.snapshotRepository) {
-      const snapshot = await deps.snapshotRepository.read().catch(() => null);
-      if (snapshot && snapshot.satellites.length > 0) {
-        deps.logger.warn(
-          `celestrak fetch failed, serving bundled snapshot (${snapshot.satellites.length} sats, fetched ${snapshot.fetchedAt}): ${msg}`,
-        );
-        return snapshot.satellites;
-      }
-    }
-    // No data at all — return empty so the API responds 200 rather than 500.
-    // Frontend retries via useSatellites (retry: 8) and recovers once Celestrak
-    // becomes reachable.
-    deps.logger.warn(`celestrak fetch failed, no fallback available: ${msg}`);
-    return [];
+
+    throw new Error(`No satellite data available: ${msg}`);
   }
 }
 
 /**
- * Fetch every supported group in parallel and flatten the result.
- * Individual group failures are tolerated — a single 403/timeout won't
- * abort the whole sync. But if *every* group fails we throw so the caller
- * can fall back to a stale cache rather than caching an empty list.
- *
- * @throws When all groups fail (total Celestrak outage / rate-limit).
+ * Fetch all Celestrak groups in parallel. Tolerates individual group failures
+ * (403, timeout) but throws when every group fails so callers can fall back.
  */
 async function fetchAllGroups(client: CelestrakClient): Promise<Satellite[]> {
   const results = await Promise.allSettled(

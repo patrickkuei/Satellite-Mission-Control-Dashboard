@@ -53,8 +53,6 @@ const API_VERSION = '0.1.0';
 const SERVICE_NAME = 'orbit-ctrl-api';
 /** Default cache location, overridable via `TLE_CACHE_PATH`. */
 const DEFAULT_TLE_CACHE_PATH = path.resolve(process.cwd(), 'data', 'tle-cache.json');
-/** Committed snapshot bundled in the Docker image — refreshed every 2 days by GH Actions. */
-const DEFAULT_SNAPSHOT_PATH = path.resolve(process.cwd(), 'data', 'satellites-snapshot.json');
 
 /**
  * Build a configured Fastify instance with all plugins, dependencies, and
@@ -105,14 +103,10 @@ export async function buildServer(): Promise<FastifyInstance> {
   const tleRepository = createTLERepository({
     cachePath: process.env.TLE_CACHE_PATH ?? DEFAULT_TLE_CACHE_PATH,
   });
-  const snapshotRepository = createTLERepository({
-    cachePath: process.env.SNAPSHOT_PATH ?? DEFAULT_SNAPSHOT_PATH,
-  });
   const orbitService = createOrbitService();
   const satelliteService = createSatelliteService({
     celestrak: celestrakClient,
     repository: tleRepository,
-    snapshotRepository,
     orbit: orbitService,
     logger: {
       info: (msg) => server.log.info(msg),
@@ -176,9 +170,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     });
   }
 
-  // Fire-and-forget TLE prefetch: start warming the cache before traffic arrives
-  // but don't block server startup. Celestrak can take >10 s on a cold Render
-  // instance, which exceeds Fastify's onReady hook timeout (FST_ERR_HOOK_TIMEOUT).
+  // Fire-and-forget prefetch — warms memoCache before the first request arrives.
+  // Must not await: Celestrak can exceed Fastify's onReady hook timeout (10 s).
   server.addHook('onReady', (done) => {
     void satelliteService
       .list()

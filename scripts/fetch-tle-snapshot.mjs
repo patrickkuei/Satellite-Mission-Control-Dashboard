@@ -1,11 +1,11 @@
 /**
  * Standalone script — fetches TLE data from Celestrak and writes a curated
- * satellite snapshot to `apps/api/data/satellites-snapshot.json`.
+ * satellite snapshot to `apps/web/public/satellites-snapshot.json`.
  *
  * Run by GitHub Actions every 2 days (GitHub runner IPs are not rate-limited
- * by Celestrak). The output file is committed to the repo and bundled into
- * the Docker image so the API always has a fallback dataset even when
- * Celestrak is unreachable from Render's egress IPs.
+ * by Celestrak). The output file is served as a static asset from GitHub Pages
+ * so the frontend can display cached satellite positions when the API server
+ * is unreachable (cold start, Render free-tier sleep).
  *
  * Usage:
  *   node scripts/fetch-tle-snapshot.mjs
@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUTPUT_PATH = path.resolve(__dirname, '..', 'apps', 'api', 'data', 'satellites-snapshot.json');
+const OUTPUT_PATH = path.resolve(__dirname, '..', 'apps', 'web', 'public', 'satellites-snapshot.json');
 const CELESTRAK_GP_URL = 'https://celestrak.org/NORAD/elements/gp.php';
 const GROUPS = ['stations', 'starlink', 'science'];
 const MAX_TRACKED = 50;

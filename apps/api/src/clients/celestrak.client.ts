@@ -48,8 +48,6 @@ export function createCelestrakClient(): CelestrakClient {
   return {
     async fetchGroup(group) {
       const url = `${CELESTRAK_GP_URL}?GROUP=${group}&FORMAT=tle`;
-      // 30 s timeout — Celestrak can be slow from cloud egress IPs.
-      // Default undici connect timeout is 10 s which is too tight on cold starts.
       const res = await fetch(url, {
         signal: AbortSignal.timeout(30_000),
         headers: {

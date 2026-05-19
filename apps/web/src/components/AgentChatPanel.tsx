@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useAgentChat, type ChatMessage } from '../hooks/useAgentChat';
+import { useSystemStatus } from '../stores/systemStatus';
 import styles from './AgentChatPanel.module.css';
 
 /**
@@ -46,6 +47,7 @@ export interface AgentChatPanelProps {
 
 export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Element | null {
   const { messages, streaming, thinking, error, send, stop, retry, reset } = useAgentChat();
+  const { serverDown } = useSystemStatus();
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -129,6 +131,7 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
         {error && <div className={styles.error}>{error}</div>}
       </div>
 
+      {serverDown && <div className={styles.agentOffline}>AGENT OFFLINE — uplink required</div>}
       <form className={styles.form} onSubmit={onSubmit}>
         <textarea
           ref={inputRef}
@@ -136,8 +139,14 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder={streaming ? 'streaming…' : 'Ask about satellites, weather, anomalies…'}
-          disabled={streaming}
+          placeholder={
+            serverDown
+              ? 'Unavailable while server starts…'
+              : streaming
+                ? 'streaming…'
+                : 'Ask about satellites, weather, anomalies…'
+          }
+          disabled={streaming || serverDown}
           rows={2}
         />
         {streaming ? (
@@ -150,7 +159,12 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
             ■
           </button>
         ) : (
-          <button type="submit" className={styles.send} disabled={!input.trim()} aria-label="Send">
+          <button
+            type="submit"
+            className={styles.send}
+            disabled={!input.trim() || serverDown}
+            aria-label="Send"
+          >
             ↵
           </button>
         )}

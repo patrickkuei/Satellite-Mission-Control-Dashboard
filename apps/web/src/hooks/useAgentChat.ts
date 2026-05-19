@@ -278,7 +278,6 @@ function applyEvent(
   setThinking: React.Dispatch<React.SetStateAction<boolean>>,
 ): void {
   if (evt.type === 'done') return;
-  // Highlight the relevant satellite on the globe without touching message state.
   if (evt.type === 'select_satellite') {
     useSelectedSatellite.getState().setSelected(evt.noradId);
     return;

@@ -1,30 +1,29 @@
 /**
  * useSatellites — fetch the curated satellite list once via TanStack Query.
  *
- * The list is effectively static for a session (Celestrak refreshes once per
- * day on the backend), so no polling — we just rely on the query cache.
- *
- * Retry policy: 8 attempts with exponential backoff (capped at 10 s each).
- * Total window ≈ 55 s — enough to outlast a Render free-tier cold start
- * (~30–50 s) before the query transitions to `isError`.
+ * Retries up to 8× with exponential backoff (capped at 10 s) to outlast a
+ * Render free-tier cold start. On persistent failure the query enters isError
+ * state and the App renders the wakeup banner with a manual retry button.
  */
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type { Satellite } from '@orbit-ctrl/types';
-import { fetchSatellites } from '../api/satellites';
+import { fetchSatellites, type SatellitesResult } from '../api/satellites';
 
 /** Query-key constant so other hooks / devtools can target the cache entry. */
 export const SATELLITES_QUERY_KEY = ['satellites'] as const;
 
 /**
- * Subscribe to the tracked satellite list.
+ * Subscribe to the tracked satellite list. Returns the full {@link SatellitesResult}
+ * so callers can distinguish live API data from the static GH Pages snapshot.
  *
  * @example
  * ```tsx
- * const { data: satellites = [] } = useSatellites();
- * return <span>Tracking {satellites.length} satellites</span>;
+ * const { data } = useSatellites();
+ * const satellites = data?.satellites ?? [];
+ * const isStale = data?.stale ?? false;
  * ```
  */
-export function useSatellites(): UseQueryResult<Satellite[]> {
+export function useSatellites(): UseQueryResult<SatellitesResult> {
   return useQuery({
     queryKey: SATELLITES_QUERY_KEY,
     queryFn: fetchSatellites,

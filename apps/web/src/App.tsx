@@ -6,7 +6,7 @@
  * detail card + upcoming passes over the user's observer location. All data
  * flow lives in hooks; this file only wires them to presentational components.
  */
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import StatusBadge from './components/StatusBadge';
 import { SpaceWeatherBadge } from './components/SpaceWeatherBadge';
 import type { SatelliteWithPosition } from './components/Globe';
@@ -15,9 +15,11 @@ import { SatelliteDetail } from './components/SatelliteDetail';
 import { TelemetryStrip } from './components/TelemetryStrip';
 import { AlertLog } from './components/AlertLog';
 import { AgentChatPanel } from './components/AgentChatPanel';
+import { StatusConsole } from './components/StatusConsole';
 import { Toasts } from './components/Toasts';
 import { useApiHealth } from './hooks/useApiHealth';
 import { useSatellites } from './hooks/useSatellites';
+import { useServerHealth } from './hooks/useServerHealth';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
 import { useGroundTrack } from './hooks/useGroundTrack';
 import { useSpaceWeather } from './hooks/useSpaceWeather';
@@ -26,6 +28,7 @@ import { useTelemetryStream } from './hooks/useTelemetryStream';
 import { useUtcClock } from './hooks/useUtcClock';
 import { useSelectedSatellite } from './stores/selectedSatellite';
 import { useObserverLocation } from './stores/observerLocation';
+import { useSystemStatus } from './stores/systemStatus';
 import styles from './App.module.css';
 
 // Lazy-load the Globe so Three.js (~1 MB) doesn't block the initial paint.
@@ -34,11 +37,14 @@ const Globe = lazy(() => import('./components/Globe').then((m) => ({ default: m.
 export function App(): JSX.Element {
   const { data: health, error: healthError } = useApiHealth();
   const {
-    data: satellites = [],
+    data: satellitesResult,
     isPending: satellitesPending,
-    isError: satellitesError,
     refetch: refetchSatellites,
   } = useSatellites();
+  const { serverDown } = useServerHealth();
+  const { setServerDown, setSatellitesStale } = useSystemStatus();
+
+  const satellites = satellitesResult?.satellites ?? [];
   const { data: positions = [] } = useSatellitePositions();
   const { data: weather } = useSpaceWeather();
   const selectedId = useSelectedSatellite((s) => s.selectedId);
@@ -49,6 +55,19 @@ export function App(): JSX.Element {
   const { latestById, historyById, alerts, state: wsState } = useTelemetryStream();
   const [chatOpen, setChatOpen] = useState(false);
   const utcTime = useUtcClock();
+
+  // Sync health + satellite staleness into the system status store.
+  useEffect(() => {
+    setServerDown(serverDown);
+  }, [serverDown, setServerDown]);
+  useEffect(() => {
+    setSatellitesStale(satellitesResult?.stale ?? false, satellitesResult?.fetchedAt);
+  }, [satellitesResult?.stale, satellitesResult?.fetchedAt, setSatellitesStale]);
+
+  // When server comes back up, trigger a fresh satellite fetch.
+  useEffect(() => {
+    if (!serverDown) void refetchSatellites();
+  }, [serverDown, refetchSatellites]);
 
   // Join satellites + positions into the shape Globe expects.
   const pairs = useMemo<SatelliteWithPosition[]>(
@@ -89,21 +108,9 @@ export function App(): JSX.Element {
           <StatusBadge status={status} />
         </span>
       </header>
-      {wsState !== 'open' && (
+      {wsState !== 'open' && !serverDown && (
         <div className={styles.reconnectBanner}>
           {wsState === 'connecting' ? 'reconnecting telemetry…' : 'telemetry offline'}
-        </div>
-      )}
-      {satellitesError && satellites.length === 0 && (
-        <div className={styles.wakeupBanner}>
-          API server is offline or still waking up —{' '}
-          <button
-            type="button"
-            className={styles.wakeupRetry}
-            onClick={() => void refetchSatellites()}
-          >
-            retry
-          </button>
         </div>
       )}
       <section className={styles.stage}>
@@ -117,6 +124,7 @@ export function App(): JSX.Element {
             kpIndex={weather?.kpIndex ?? null}
           />
         </Suspense>
+        <StatusConsole wsState={wsState} />
         <SatelliteDetail
           data={selectedPair}
           passes={passes}

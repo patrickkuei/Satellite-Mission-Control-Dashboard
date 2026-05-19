@@ -39,10 +39,7 @@ const HISTORY_WINDOW = 6;
  * - `text`             — incremental assistant text; concatenate to render.
  * - `tool_start`       — broker is about to dispatch a tool call.
  * - `tool_end`         — tool call completed (success or error).
- * - `select_satellite` — emitted after a satellite-specific tool succeeds; the
- *                        frontend should highlight this NORAD ID on the globe.
- *                        Only consumed by the browser SSE client — MCP stdio
- *                        transport never sees this event.
+ * - `select_satellite` — satellite-specific tool succeeded; browser should highlight it on the globe.
  * - `error`            — fatal: orchestrator gave up (e.g., self-correction cap hit).
  * - `done`             — final event of the stream, always last.
  */
@@ -253,11 +250,7 @@ async function summariseHistory(turns: ConversationTurn[], llm: LLMProvider): Pr
   return text.trim() || 'Earlier conversation context unavailable.';
 }
 
-/**
- * Tools that operate on a single named satellite and whose result should
- * trigger a globe selection event. `find_satellites_above` and
- * `get_space_weather` are intentionally excluded — they are not satellite-specific.
- */
+/** Single-satellite tools that should trigger a globe selection after success. */
 const SATELLITE_SPECIFIC_TOOLS = new Set<string>([
   TOOL_NAMES.GET_SATELLITE_POSITION,
   TOOL_NAMES.PREDICT_PASSES,
@@ -266,17 +259,9 @@ const SATELLITE_SPECIFIC_TOOLS = new Set<string>([
 ]);
 
 /**
- * Try to extract a NORAD ID from a JSON tool result string.
- *
- * Handles three shapes returned by satellite-specific tools:
- * - `{ noradId: number }` — get_satellite_position (augmented by agent-tools)
- * - `{ satelliteId: number }` — get_satellite_telemetry, get_anomalies items
- * - `[{ satelliteId: number }, ...]` — predict_passes array
- *
- * Returns `null` on parse failure or missing field so the caller can skip
- * without crashing the stream.
- *
- * @param content - Raw JSON string from the tool broker.
+ * Extract a NORAD ID from a JSON tool result. Handles `{ noradId }`,
+ * `{ satelliteId }`, and `[{ satelliteId }]` shapes. Returns `null` on
+ * parse failure so the caller can skip without crashing the stream.
  */
 function extractNoradId(content: string): number | null {
   try {
@@ -326,7 +311,6 @@ async function* dispatchToolCalls(
 
     yield { type: 'tool_end', name: call.name, isError: result.isError };
 
-    // Signal the browser to highlight the relevant satellite on the globe.
     if (!result.isError && SATELLITE_SPECIFIC_TOOLS.has(call.name)) {
       const noradId = extractNoradId(result.content);
       if (noradId !== null) yield { type: 'select_satellite', noradId };

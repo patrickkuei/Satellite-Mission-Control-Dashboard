@@ -1,0 +1,42 @@
+.console {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 1;
+  transition: opacity 1s ease;
+}
+
+.fading {
+  opacity: 0;
+}
+
+.line {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.label {
+  color: rgba(255, 255, 255, 0.4);
+  min-width: 5rem;
+}
+
+.nominal {
+  color: #4ade80; /* green-400 */
+}
+
+.offline {
+  color: var(--accent); /* amber */
+}

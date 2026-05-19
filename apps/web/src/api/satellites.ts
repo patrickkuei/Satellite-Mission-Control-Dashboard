@@ -8,11 +8,34 @@
 import type { GroundTrack, ObserverLocation, Pass, Position, Satellite } from '@orbit-ctrl/types';
 import { apiBase } from './config';
 
-/** Fetch the curated list of tracked satellites (one-time on app boot). */
-export async function fetchSatellites(): Promise<Satellite[]> {
-  const res = await fetch(`${apiBase}/satellites`);
-  if (!res.ok) throw new Error(`GET ${apiBase}/satellites failed: ${res.status}`);
-  return (await res.json()) as Satellite[];
+/** Result of {@link fetchSatellites}, tagged to indicate data origin. */
+export interface SatellitesResult {
+  satellites: Satellite[];
+  /** True when data comes from the static GH Pages snapshot (API unreachable). */
+  stale: boolean;
+  /** ISO 8601 timestamp of the snapshot; only set when `stale` is true. */
+  fetchedAt?: string;
+}
+
+/**
+ * Fetch the curated satellite list from the API. On any failure, falls back
+ * to the static snapshot served from GitHub Pages (`/satellites-snapshot.json`)
+ * so the globe renders even while the Render server is waking up.
+ *
+ * @throws Only if both the API and the static snapshot are unreachable.
+ */
+export async function fetchSatellites(): Promise<SatellitesResult> {
+  try {
+    const res = await fetch(`${apiBase}/satellites`);
+    if (!res.ok) throw new Error(`${res.status}`);
+    const satellites = (await res.json()) as Satellite[];
+    return { satellites, stale: false };
+  } catch {
+    const snap = await fetch('/satellites-snapshot.json');
+    if (!snap.ok) throw new Error('Satellite data unavailable: API and snapshot both unreachable');
+    const payload = (await snap.json()) as { fetchedAt: string; satellites: Satellite[] };
+    return { satellites: payload.satellites, stale: true, fetchedAt: payload.fetchedAt };
+  }
 }
 
 /**
