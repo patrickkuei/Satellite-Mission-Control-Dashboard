@@ -202,12 +202,16 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
     return curated;
   } catch (err) {
     // Fall back to any stored cache (even stale) when Celestrak is unreachable.
-    // Prefer a non-empty stale cache over nothing.
     if (stored && stored.satellites.length > 0) {
       deps.logger.warn(`celestrak fetch failed, serving stale cache: ${(err as Error).message}`);
       return stored.satellites;
     }
-    throw err;
+    // No usable cache at all — return empty rather than throwing a 500.
+    // The frontend retries via useSatellites (retry: 8), so it will recover
+    // once Celestrak becomes reachable. Throwing here kills the HTTP request
+    // entirely, which is worse than a transient empty response.
+    deps.logger.warn(`celestrak fetch failed, no cache available: ${(err as Error).message}`);
+    return [];
   }
 }
 
