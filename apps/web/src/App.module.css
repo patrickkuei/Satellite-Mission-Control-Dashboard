@@ -50,6 +50,7 @@
 
 .globeWrapper {
   flex: 1;
+  display: flex;
   position: relative;
   min-height: 0;
   min-width: 0;
