@@ -93,7 +93,13 @@ export function createTelemetryService(deps: TelemetryServiceDeps): TelemetrySer
   return {
     async sample(now = new Date()) {
       const satellites = await deps.listSatellites();
-      return satellites.map((sat) => sampleOne(sat, now, deps.orbit, attitudeState, faults));
+      return satellites.flatMap((sat) => {
+        try {
+          return [sampleOne(sat, now, deps.orbit, attitudeState, faults)];
+        } catch {
+          return [];
+        }
+      });
     },
   };
 }

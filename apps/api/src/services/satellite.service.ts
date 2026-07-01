@@ -135,7 +135,13 @@ export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteSer
     },
     async listPositions(time = new Date()) {
       const all = await ensureLoaded();
-      return all.map((s) => deps.orbit.positionAt(s, time));
+      return all.flatMap((s) => {
+        try {
+          return [deps.orbit.positionAt(s, time)];
+        } catch {
+          return [];
+        }
+      });
     },
     async passesOf(noradId, observer, hours) {
       const sat = await findSatellite(noradId);

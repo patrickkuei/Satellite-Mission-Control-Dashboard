@@ -129,7 +129,7 @@ function lookAngles(
 ): { elevationDeg: number; azimuthDeg: number; rangeKm: number } | null {
   const satrec = satellite.twoline2satrec(sat.tle.line1, sat.tle.line2);
   const pv = satellite.propagate(satrec, time);
-  if (!pv.position || typeof pv.position === 'boolean') return null;
+  if (!pv || !pv.position || typeof pv.position === 'boolean') return null;
 
   const gmst = satellite.gstime(time);
   const observerGd = {
@@ -157,7 +157,7 @@ function lookAngles(
 function propagate(sat: Satellite, time: Date): Position {
   const satrec = satellite.twoline2satrec(sat.tle.line1, sat.tle.line2);
   const pv = satellite.propagate(satrec, time);
-  if (!pv.position || typeof pv.position === 'boolean') {
+  if (!pv || !pv.position || typeof pv.position === 'boolean') {
     throw new Error(
       `SGP4 propagation failed for ${sat.name} (${sat.noradId}) at ${time.toISOString()}`,
     );
@@ -191,7 +191,7 @@ function velocityMagnitude(v: satellite.EciVec3<number> | boolean): number {
 function elevationDeg(sat: Satellite, observer: ObserverLocation, time: Date): number {
   const satrec = satellite.twoline2satrec(sat.tle.line1, sat.tle.line2);
   const pv = satellite.propagate(satrec, time);
-  if (!pv.position || typeof pv.position === 'boolean') return -Infinity;
+  if (!pv || !pv.position || typeof pv.position === 'boolean') return -Infinity;
 
   const gmst = satellite.gstime(time);
   const observerGd = {
