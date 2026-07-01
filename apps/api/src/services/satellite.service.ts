@@ -89,23 +89,30 @@ export interface SatelliteService {
   findAbove(observer: ObserverLocation, minElevationDeg?: number): Promise<VisibleSatellite[]>;
 }
 
+/** In-memory cache TTL — matches the disk cache TTL so both age out together. */
+const MEMO_TTL_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Build a {@link SatelliteService} with explicit dependencies. The first
  * call to any method loads the cache and (if stale) hits Celestrak; later
- * calls reuse the in-memory list.
+ * calls reuse the in-memory list until the 24 h TTL expires.
  */
 export function createSatelliteService(deps: SatelliteServiceDeps): SatelliteService {
   let memoCache: Satellite[] | null = null;
+  let memoCacheLoadedAt = 0;
   // Shared promise so concurrent callers (e.g. the onReady prefetch + first
   // request) share one Celestrak round-trip instead of issuing duplicates.
   let loadingPromise: Promise<Satellite[]> | null = null;
 
   async function ensureLoaded(): Promise<Satellite[]> {
-    if (memoCache !== null) return memoCache;
+    if (memoCache !== null && Date.now() - memoCacheLoadedAt < MEMO_TTL_MS) return memoCache;
     if (loadingPromise) return loadingPromise;
     loadingPromise = loadFromCacheOrFetch(deps)
       .then((loaded) => {
-        if (loaded.length > 0) memoCache = loaded;
+        if (loaded.length > 0) {
+          memoCache = loaded;
+          memoCacheLoadedAt = Date.now();
+        }
         loadingPromise = null;
         return loaded;
       })
@@ -181,8 +188,12 @@ export class SatelliteNotFoundError extends Error {
  * Load satellite data using a four-level fallback chain:
  *   1. Fresh disk cache (within 24 h TTL, non-empty)
  *   2. Live Celestrak fetch → write to disk cache
- *   3. Stale disk cache → any age, if Celestrak fails
- *   4. Remote snapshot (`snapshotUrl`) — GH Pages in demo, object storage in prod
+ *   3. Remote snapshot (`snapshotUrl`) — GH Pages (updated every 2 days by CI)
+ *   4. Stale disk cache → last resort, any age
+ *
+ * Remote snapshot is preferred over stale disk cache because GitHub Actions
+ * keeps it fresh (≤ 2 days old), whereas a cloud container's disk cache may
+ * be weeks old if Celestrak has been blocking the host for a long time.
  *
  * Throws when all sources fail — callers should surface a 503 rather than
  * return an empty list, so the frontend's retry logic can fire correctly.
@@ -205,17 +216,17 @@ async function loadFromCacheOrFetch(deps: SatelliteServiceDeps): Promise<Satelli
   } catch (err) {
     const msg = (err as Error).message;
 
-    if (stored && stored.satellites.length > 0) {
-      deps.logger.warn(`Celestrak failed, serving stale cache: ${msg}`);
-      return stored.satellites;
-    }
-
     if (deps.snapshotUrl) {
       const snapshot = await fetchRemoteSnapshot(deps.snapshotUrl).catch(() => null);
       if (snapshot && snapshot.length > 0) {
         deps.logger.warn(`Celestrak failed, serving remote snapshot (${deps.snapshotUrl}): ${msg}`);
         return snapshot;
       }
+    }
+
+    if (stored && stored.satellites.length > 0) {
+      deps.logger.warn(`Celestrak failed, serving stale cache: ${msg}`);
+      return stored.satellites;
     }
 
     throw new Error(`No satellite data available: ${msg}`);
