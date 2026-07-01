@@ -1,9 +1,7 @@
 import { jest } from '@jest/globals';
 import { createSatelliteService } from './satellite.service.js';
-import type { CelestrakClient } from '../clients/celestrak.client.js';
-import type { TLERepository, TLECacheFile } from '../repositories/tle.repository.js';
-import type { OrbitService } from './orbit.service.js';
-import type { Position, Satellite } from '@orbit-ctrl/types';
+import type { TLECacheFile } from '../repositories/tle.repository.js';
+import type { Satellite } from '@orbit-ctrl/types';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -19,49 +17,62 @@ const makeSat = (noradId: number): Satellite => ({
   },
 });
 
-const makePosition = (noradId: number): Position => ({
-  lat: 35,
-  lon: 139,
-  alt: 400,
-  velocity: 7.7,
-  timestamp: new Date().toISOString(),
-});
-
 const FRESH_CACHE: TLECacheFile = {
   fetchedAt: new Date().toISOString(),
   satellites: [makeSat(1), makeSat(2)],
 };
 
+const makePosition = (noradId: number) => ({
+  lat: 35,
+  lon: 139,
+  alt: 400,
+  velocity: 7.7,
+  timestamp: new Date().toISOString(),
+  _id: noradId,
+});
+
 // ---------------------------------------------------------------------------
 // Mock factories
+//
+// jest.fn() from @jest/globals returns Mock<UnknownFunction> whose
+// .mockResolvedValue / .mockReturnValue / .mockImplementation methods have
+// strict parameter types that don't match concrete signatures at compile time.
+// We cast each mock to `any` before chaining so the object literals typecheck,
+// then cast the final objects to `any` so they satisfy the interface expected
+// by createSatelliteService.
 // ---------------------------------------------------------------------------
 
-function makeRepo(overrides: Partial<TLERepository> = {}): TLERepository {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const fn = (): any => jest.fn() as any;
+
+function makeRepo(overrides: Record<string, any> = {}): any {
   return {
-    read: jest.fn().mockResolvedValue(FRESH_CACHE),
-    write: jest.fn().mockResolvedValue(undefined),
-    isFresh: jest.fn().mockReturnValue(true),
+    read: fn().mockResolvedValue(FRESH_CACHE),
+    write: fn().mockResolvedValue(undefined),
+    isFresh: fn().mockReturnValue(true),
     ...overrides,
   };
 }
 
-function makeCelestrak(satellites: Satellite[] = []): CelestrakClient {
+function makeCelestrak(overrides: Record<string, any> = {}): any {
   return {
-    fetchGroup: jest.fn().mockResolvedValue(satellites),
-  };
-}
-
-function makeOrbit(overrides: Partial<OrbitService> = {}): OrbitService {
-  return {
-    positionAt: jest.fn().mockImplementation((sat: Satellite) => makePosition(sat.noradId)),
-    groundTrack: jest.fn(),
-    predictPasses: jest.fn().mockResolvedValue([]),
-    lookAnglesAt: jest.fn().mockReturnValue(null),
+    fetchGroup: fn().mockResolvedValue([]),
     ...overrides,
   };
 }
 
-const SILENT_LOGGER = { info: jest.fn(), warn: jest.fn() };
+function makeOrbit(overrides: Record<string, any> = {}): any {
+  return {
+    positionAt: fn().mockImplementation((sat: unknown) => makePosition((sat as Satellite).noradId)),
+    groundTrack: fn(),
+    predictPasses: fn().mockResolvedValue([]),
+    lookAnglesAt: fn().mockReturnValue(null),
+    ...overrides,
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+const SILENT_LOGGER = { info: fn(), warn: fn() };
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -99,17 +110,19 @@ describe('createSatelliteService', () => {
 
     it('falls back to snapshotUrl when Celestrak fails and disk cache is empty', async () => {
       const snapshotSats = [makeSat(99)];
-      // Simulate a snapshot server returning one satellite.
-      global.fetch = jest.fn().mockResolvedValue({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).fetch = fn().mockResolvedValue({
         ok: true,
         json: async () => ({ satellites: snapshotSats }),
-      } as unknown as Response);
+      });
 
       const service = createSatelliteService({
-        celestrak: { fetchGroup: jest.fn().mockRejectedValue(new Error('403')) },
+        celestrak: makeCelestrak({
+          fetchGroup: fn().mockRejectedValue(new Error('403')),
+        }),
         repository: makeRepo({
-          read: jest.fn().mockResolvedValue(null), // empty cache
-          isFresh: jest.fn().mockReturnValue(false),
+          read: fn().mockResolvedValue(null),
+          isFresh: fn().mockReturnValue(false),
         }),
         orbit: makeOrbit(),
         logger: SILENT_LOGGER,
@@ -135,11 +148,10 @@ describe('createSatelliteService', () => {
     });
 
     it('skips satellites whose propagation throws instead of crashing the batch', async () => {
-      // sat(1) propagates fine; sat(2) throws — listPositions should return only one result.
       const orbit = makeOrbit({
-        positionAt: jest.fn().mockImplementation((sat: Satellite) => {
-          if (sat.noradId === 2) throw new Error('SGP4 propagation failed');
-          return makePosition(sat.noradId);
+        positionAt: fn().mockImplementation((sat: unknown) => {
+          if ((sat as Satellite).noradId === 2) throw new Error('SGP4 propagation failed');
+          return makePosition((sat as Satellite).noradId);
         }),
       });
 
@@ -156,7 +168,7 @@ describe('createSatelliteService', () => {
 
     it('returns an empty array when every satellite fails propagation', async () => {
       const orbit = makeOrbit({
-        positionAt: jest.fn().mockImplementation(() => {
+        positionAt: fn().mockImplementation(() => {
           throw new Error('SGP4 propagation failed');
         }),
       });
