@@ -10,18 +10,26 @@
  * concerns (autoscroll, focus) — anything stateful belongs in the hook.
  */
 import {
+  memo,
+  useCallback,
   useEffect,
   useRef,
   useState,
   type AnchorHTMLAttributes,
   type FormEvent,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAgentChat, type ChatMessage } from '../hooks/useAgentChat';
 import { useSystemStatus } from '../stores/systemStatus';
 import styles from './AgentChatPanel.module.css';
+
+/** Width bounds for the resizable panel (px). */
+const MIN_WIDTH = 320;
+const MAX_WIDTH = 640;
+const DEFAULT_WIDTH = 380;
 
 /** Renders markdown links as new-tab external links — assistant text may cite NOAA/Celestrak sources. */
 function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element {
@@ -63,8 +71,36 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
   const { messages, streaming, thinking, error, send, stop, retry, reset } = useAgentChat();
   const { serverDown } = useSystemStatus();
   const [input, setInput] = useState('');
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const dragStartX = useRef<number | null>(null);
+  const dragStartWidth = useRef(DEFAULT_WIDTH);
+
+  const onDragStart = useCallback(
+    (e: ReactMouseEvent) => {
+      dragStartX.current = e.clientX;
+      dragStartWidth.current = width;
+
+      const onMove = (ev: MouseEvent) => {
+        if (dragStartX.current === null) return;
+        // Panel is right-anchored — dragging left (negative delta) widens it.
+        const delta = dragStartX.current - ev.clientX;
+        const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta));
+        setWidth(next);
+      };
+
+      const onUp = () => {
+        dragStartX.current = null;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [width],
+  );
 
   // Pin to bottom on every new chunk; users scroll up to break out.
   useEffect(() => {
@@ -97,7 +133,8 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
   }
 
   return (
-    <aside className={styles.panel} aria-label="Mission control assistant">
+    <aside className={styles.panel} style={{ width }} aria-label="Mission control assistant">
+      <div className={styles.dragHandle} onMouseDown={onDragStart} aria-hidden="true" />
       <header className={styles.header}>
         <span className={styles.title}>assistant</span>
         <div className={styles.headerActions}>
@@ -194,8 +231,22 @@ interface MessageRowProps {
   onRetry: () => void;
 }
 
-/** One transcript row. Tool chips render above the body when present. */
-function MessageRow({ message, showRetry, onRetry }: MessageRowProps): JSX.Element {
+/**
+ * One transcript row. Tool chips render above the body when present.
+ *
+ * Memoized: dragging the resize handle re-renders {@link AgentChatPanel} on
+ * every `mousemove` tick (via its `width` state), and without this, every
+ * message would re-render too — including a full markdown re-parse of every
+ * assistant response on every tick. `message` keeps a stable reference
+ * across unrelated re-renders (`useAgentChat`'s `setMessages` only replaces
+ * the object for the message actually being updated) and `onRetry` is
+ * already a stable `useCallback`, so memoization actually holds here.
+ */
+const MessageRow = memo(function MessageRow({
+  message,
+  showRetry,
+  onRetry,
+}: MessageRowProps): JSX.Element {
   return (
     <div className={`${styles.message} ${styles[message.role]}`}>
       {message.toolCalls.length > 0 && (
@@ -227,7 +278,7 @@ function MessageRow({ message, showRetry, onRetry }: MessageRowProps): JSX.Eleme
       )}
     </div>
   );
-}
+});
 
 function chipClassKey(
   status: 'running' | 'ok' | 'error',

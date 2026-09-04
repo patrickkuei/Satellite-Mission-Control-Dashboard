@@ -5,7 +5,7 @@
  * accent colour. Satellite names are joined in at the call site so this
  * component stays free of the satellite map.
  */
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { memo, useMemo, useState, useRef, useCallback } from 'react';
 import type { Anomaly } from '@orbit-ctrl/types';
 import styles from './AlertLog.module.css';
 
@@ -108,25 +108,45 @@ export function AlertLog({ alerts, nameById, selectedId }: AlertLogProps): JSX.E
       ) : (
         <ul className={styles.list}>
           {visible.map((a) => (
-            <li key={a.id} className={`${styles.row} ${styles[a.severity]}`}>
-              <span
-                className={`${styles.chip} ${a.severity === 'alert' ? styles.chip_alert : styles.chip_warn}`}
-              >
-                {a.severity === 'alert' ? 'ALRT' : 'WARN'}
-              </span>
-              <span className={styles.time}>{formatTime(a.timestamp)}</span>
-              <span className={styles.sat}>
-                {nameById.get(a.satelliteId) ?? `NORAD ${a.satelliteId}`}
-              </span>
-              <span className={styles.desc}>{a.description}</span>
-              <span className={styles.zscore}>Z {a.zscore.toFixed(1)}</span>
-            </li>
+            <AlertRow
+              key={a.id}
+              alert={a}
+              satelliteName={nameById.get(a.satelliteId) ?? `NORAD ${a.satelliteId}`}
+            />
           ))}
         </ul>
       )}
     </section>
   );
 }
+
+interface AlertRowProps {
+  alert: Anomaly;
+  /** Resolved once in the parent so this component stays free of the nameById Map. */
+  satelliteName: string;
+}
+
+/**
+ * One anomaly row. Memoized so dragging the resize handle — which re-renders
+ * {@link AlertLog} on every `mousemove` tick — doesn't re-render every row in
+ * the list each time; `alert` and `satelliteName` are stable across a resize
+ * since {@link AlertLog}'s `visible` list isn't recomputed from `height`.
+ */
+const AlertRow = memo(function AlertRow({ alert, satelliteName }: AlertRowProps): JSX.Element {
+  return (
+    <li className={`${styles.row} ${styles[alert.severity]}`}>
+      <span
+        className={`${styles.chip} ${alert.severity === 'alert' ? styles.chip_alert : styles.chip_warn}`}
+      >
+        {alert.severity === 'alert' ? 'ALRT' : 'WARN'}
+      </span>
+      <span className={styles.time}>{formatTime(alert.timestamp)}</span>
+      <span className={styles.sat}>{satelliteName}</span>
+      <span className={styles.desc}>{alert.description}</span>
+      <span className={styles.zscore}>Z {alert.zscore.toFixed(1)}</span>
+    </li>
+  );
+});
 
 /** Short UTC clock — matches the design's mono-monochrome time style. */
 function formatTime(iso: string): string {
