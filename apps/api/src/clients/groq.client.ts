@@ -1,7 +1,7 @@
 /**
  * Groq adapter — implements {@link LLMProvider} on top of `groq-sdk`.
  *
- * Groq runs open-source models (Llama 3.3 70B by default) on custom
+ * Groq runs open-source models (`openai/gpt-oss-120b` by default) on custom
  * inference hardware, giving sub-second first-token latency on the free tier.
  * Used as the first fallback when Gemini exhausts its retry budget.
  *
@@ -25,8 +25,13 @@ import type {
 } from './llm-provider.js';
 import { withBackoff } from './backoff.js';
 
-/** Default model. Llama 3.3 70B has solid tool-calling support on Groq free tier. */
-const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+/**
+ * Default model. Groq deprecated `llama-3.3-70b-versatile` on 2026-08-16
+ * (free/developer tier); `openai/gpt-oss-120b` is Groq's recommended
+ * successor — an open-weight model purpose-built for agentic/tool-use
+ * workloads, which fits this app's tool-calling agent well.
+ */
+const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 /** Token cap — generous enough for multi-hop tool chains. */
 const DEFAULT_MAX_TOKENS = 2048;
 

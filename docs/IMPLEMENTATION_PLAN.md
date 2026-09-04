@@ -907,7 +907,7 @@
 
 ### Beyond original spec
 
-- [x] **Groq adapter** (`groq.client.ts`) — Llama 3.3 70B via Groq free tier; sub-second TTFT as mid-chain fallback.
+- [x] **Groq adapter** (`groq.client.ts`) — Llama 3.3 70B via Groq free tier; sub-second TTFT as mid-chain fallback. (Groq deprecated `llama-3.3-70b-versatile` 2026-08-16; migrated to `openai/gpt-oss-120b`, their recommended successor.)
 - [x] **Provider fallback chain** — `AgentServiceDeps.llm` is now `LLMProvider[]`. Orchestrator advances to next provider on exhausted retries. Chain: Gemini → Groq → Anthropic. Each provider optional; absent keys logged and skipped at startup.
 - [x] **Mid-stream restart** — `runOneTurn` catches stream errors inside `for await`. Error before first token → `providerFailed: true`, caller falls through to next provider. Error after text started → re-throw (user already saw partial content).
 - [x] **Real-time token streaming (TTFT fix)** — `runOneTurn` converted from buffered `Promise<TurnResult>` to `AsyncGenerator` that yields `text` events immediately. Frontend SSE pipe was already event-driven; the bottleneck was the backend buffer.
