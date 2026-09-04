@@ -157,6 +157,7 @@ export async function buildServer(): Promise<FastifyInstance> {
       llm: llmChain,
       broker: toolBroker,
       tools: agentTools,
+      logger: { warn: (msg) => server.log.warn(msg) },
     });
     const chainNames = llmChain.map((p) => p.name).join(' → ');
     server.log.info(`agent: provider chain [${chainNames}] (${agentTools.length} tools)`);

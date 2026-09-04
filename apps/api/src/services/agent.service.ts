@@ -51,6 +51,11 @@ export type AgentEvent =
   | { type: 'error'; message: string }
   | { type: 'done' };
 
+/** Minimal logger surface — narrow enough that any pino instance satisfies it. */
+export interface AgentServiceLogger {
+  warn(msg: string): void;
+}
+
 /** Construction-time dependencies for {@link createAgentService}. */
 export interface AgentServiceDeps {
   /**
@@ -62,6 +67,13 @@ export interface AgentServiceDeps {
   tools: Tool[];
   /** Consecutive tool errors before the orchestrator aborts the chain. Default 3. */
   maxSelfCorrections?: number;
+  /**
+   * Logs a per-provider failure (with the underlying error message) before
+   * advancing to the next provider or giving up. Without this, a provider
+   * failure is otherwise invisible server-side — the client only ever sees
+   * the generic "All providers failed" message.
+   */
+  logger: AgentServiceLogger;
 }
 
 /**
@@ -138,10 +150,19 @@ export function createAgentService(deps: AgentServiceDeps): AgentService {
       let providerIndex = 0;
 
       for (let turn = 0; turn < MAX_TURNS; turn++) {
-        const turnResult = yield* runOneTurn(deps.llm, providerIndex, messages, normalizedTools);
+        const turnResult = yield* runOneTurn(
+          deps.llm,
+          providerIndex,
+          messages,
+          normalizedTools,
+          deps.logger,
+        );
 
         const advanced = advanceProvider(turnResult.providerFailed, providerIndex, deps.llm.length);
         if (advanced.allFailed) {
+          deps.logger.warn(
+            `agent: all ${deps.llm.length} provider(s) in the chain failed — giving up`,
+          );
           yield { type: 'error', message: 'All providers failed. Please try again later.' };
           break;
         }
@@ -354,6 +375,7 @@ async function* runOneTurn(
   providerIndex: number,
   messages: NormalizedMessage[],
   tools: NormalizedTool[],
+  logger: AgentServiceLogger,
 ): AsyncGenerator<AgentEvent, TurnResult, void> {
   const llm = providers[providerIndex];
   if (!llm) return { assistantText: '', toolCalls: [], providerFailed: true };
@@ -372,11 +394,14 @@ async function* runOneTurn(
       // `stop` events are terminal markers; the for-await ends naturally.
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     if (assistantText.length > 0) {
       // Partial response already streamed — surface the error visibly.
+      logger.warn(`agent: provider "${llm.name}" failed mid-stream: ${message}`);
       throw err;
     }
     // Nothing emitted yet — signal provider failure so the caller can fall through.
+    logger.warn(`agent: provider "${llm.name}" failed before first token: ${message}`);
     return { assistantText: '', toolCalls: [], providerFailed: true };
   }
 
