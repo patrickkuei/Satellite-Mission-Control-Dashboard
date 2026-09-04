@@ -67,7 +67,7 @@ src/
 
 **Naming:** `<resource>.route.ts`, `<resource>.controller.ts`, `<resource>.service.ts`, `<source>.client.ts`, `<resource>.repository.ts` — one file per logical resource.
 
-**Testing:** services and repositories are unit-tested directly (no Fastify). Controllers get integration tests via `server.inject(...)`.
+**Testing:** portfolio project — test what demonstrates judgment, not every layer. Services and repositories carrying non-trivial logic (orbital math, anomaly thresholds, async coalescing/retry behavior) get unit tests, direct and Fastify-free. Thin layers — controllers that just delegate, clients that just wrap `fetch`/an SDK — skip tests unless they hide real logic worth verifying.
 
 ## Frontend architecture (apps/web)
 
@@ -176,7 +176,7 @@ Inline comments: explain WHY for non-obvious logic (orbital math, anomaly thresh
 
 ## Testing & linting
 
-- **Test runner:** Jest + ts-jest, target 80% coverage. Co-locate `*.test.ts` with source.
+- **Test runner:** Jest + ts-jest. Co-locate `*.test.ts` with source. No coverage-percentage target — this is a portfolio piece, not a shipping product; prioritize tests that showcase judgment (non-trivial domain logic, tricky async/edge-case behavior, regression tests for real bugs found) over blanket coverage across every file.
 - **Lint:** ESLint + Prettier + `eslint-plugin-sonarjs`, shared root config, husky + lint-staged pre-commit.
 - **Cognitive complexity ≤ 15** per function (SonarSource's calibrated default, enforced by `sonarjs/cognitive-complexity`). If a function trips this threshold, **refactor — don't suppress**. The most common fix is extracting nested conditionals into named helper functions; this also tends to make the code easier for the next AI session to reason about. Bumping the threshold is forbidden without an explicit user decision.
 

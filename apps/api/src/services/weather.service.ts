@@ -69,9 +69,13 @@ export function createWeatherService(deps: WeatherServiceDeps): WeatherService {
           if (cached) return cached;
           throw err;
         });
-        inflight.finally(() => {
-          inflight = null;
-        });
+        // .finally() returns its own promise, unhandled without this .catch()
+        // — its rejection would otherwise crash the process.
+        inflight
+          .finally(() => {
+            inflight = null;
+          })
+          .catch(() => {});
       }
       return inflight;
     },
