@@ -37,6 +37,7 @@ import { createToolBroker } from './services/tool-broker.js';
 import { createAgentService } from './services/agent.service.js';
 import { createGeminiProvider } from './clients/gemini.client.js';
 import { createGroqProvider } from './clients/groq.client.js';
+import { createMistralProvider } from './clients/mistral.client.js';
 import { createAnthropicProvider } from './clients/anthropic.client.js';
 import type { LLMProvider } from './clients/llm-provider.js';
 import { createSatelliteController } from './controllers/satellite.controller.js';
@@ -198,15 +199,16 @@ export async function buildServer(): Promise<FastifyInstance> {
 /**
  * Build the ordered LLM provider fallback chain from environment variables.
  *
- * Chain order: Gemini (primary) → Groq (fast free-tier fallback) → Anthropic (quality backstop).
- * Each provider is included only if its API key is set — missing keys are
- * skipped with a warning rather than failing startup. An empty array means
- * no agent functionality is available.
+ * Chain order: Gemini (primary) → Groq (fast free-tier fallback) → Mistral
+ * (free-tier fallback) → Anthropic (paid quality backstop, unconfigured by
+ * default). Each provider is included only if its API key is set — missing
+ * keys are skipped with a warning rather than failing startup. An empty
+ * array means no agent functionality is available.
  *
  * @example
  * ```
- * # All three configured → full chain
- * GEMINI_API_KEY=...  GROQ_API_KEY=...  ANTHROPIC_API_KEY=...
+ * # All four configured → full chain
+ * GEMINI_API_KEY=...  GROQ_API_KEY=...  MISTRAL_API_KEY=...  ANTHROPIC_API_KEY=...
  * # Gemini only → no fallback, but still works
  * GEMINI_API_KEY=...
  * ```
@@ -237,6 +239,17 @@ function buildLLMChain(log: {
     );
   } else {
     log.warn('GROQ_API_KEY unset — Groq excluded from provider chain');
+  }
+
+  if (process.env.MISTRAL_API_KEY) {
+    chain.push(
+      createMistralProvider({
+        apiKey: process.env.MISTRAL_API_KEY,
+        model: process.env.MISTRAL_MODEL,
+      }),
+    );
+  } else {
+    log.warn('MISTRAL_API_KEY unset — Mistral excluded from provider chain');
   }
 
   if (process.env.ANTHROPIC_API_KEY) {

@@ -168,11 +168,49 @@ function toAnthropicTool(t: NormalizedTool): Anthropic.Tool {
 /**
  * Convert normalized messages into Anthropic's `MessageParam[]`. Tool results
  * are sent as a `user` message containing a `tool_result` content block.
+ *
+ * `NormalizedMessage` only carries the *result* side of a tool call
+ * (`toolCallId`/`toolName` on the `role: 'tool'` message) — the orchestrator
+ * never records a structured `tool_use` block on the preceding assistant
+ * message. Anthropic's Messages API requires one: every `tool_result` block
+ * must trace back to a `tool_use` block with a matching `id` on the
+ * assistant message immediately before it, or the request is rejected. This
+ * reconstructs that pairing (same fix as `groq.client.ts`'s
+ * `toGroqMessages`, applied here since Anthropic's Messages API has the
+ * identical requirement).
+ *
+ * The original call arguments aren't available at this layer (only the
+ * result is threaded through history), so reconstructed `tool_use` blocks
+ * use a placeholder `input: {}` — Anthropic only needs the `id`/`name` to
+ * resolve the pairing, not the original arguments. Same documented fidelity
+ * gap as the Groq adapter: two consecutive hops with no assistant text in
+ * either one get merged onto one synthetic assistant message.
+ *
+ * @internal exported for testing.
  */
-function toAnthropicMessages(messages: NormalizedMessage[]): Anthropic.MessageParam[] {
-  return messages.map((msg) => {
+export function toAnthropicMessages(messages: NormalizedMessage[]): Anthropic.MessageParam[] {
+  const result: Anthropic.MessageParam[] = [];
+  // The assistant message currently accumulating tool_use blocks for the
+  // in-progress run of tool results. Reset whenever a genuinely new
+  // assistant/user message appears; reused across consecutive tool
+  // messages from the same hop.
+  let pendingToolUseAssistant: Anthropic.MessageParam | null = null;
+
+  for (const msg of messages) {
     if (msg.role === 'tool') {
-      return {
+      const toolUseBlock: Anthropic.ToolUseBlockParam = {
+        type: 'tool_use',
+        id: msg.toolCallId ?? '',
+        name: msg.toolName ?? 'unknown_tool',
+        input: {},
+      };
+      if (pendingToolUseAssistant && Array.isArray(pendingToolUseAssistant.content)) {
+        pendingToolUseAssistant.content.push(toolUseBlock);
+      } else {
+        pendingToolUseAssistant = { role: 'assistant', content: [toolUseBlock] };
+        result.push(pendingToolUseAssistant);
+      }
+      result.push({
         role: 'user',
         content: [
           {
@@ -182,13 +220,26 @@ function toAnthropicMessages(messages: NormalizedMessage[]): Anthropic.MessagePa
             is_error: Boolean(msg.isError),
           },
         ],
-      };
+      });
+      continue;
     }
-    return {
-      role: msg.role === 'assistant' ? 'assistant' : 'user',
-      content: msg.content,
-    };
-  });
+
+    pendingToolUseAssistant = null;
+    if (msg.role === 'assistant') {
+      const pushed: Anthropic.MessageParam = {
+        role: 'assistant',
+        content: [{ type: 'text', text: msg.content }],
+      };
+      result.push(pushed);
+      // Anticipate this hop's tool_use blocks (if any) attaching here,
+      // matching how the orchestrator interleaves them.
+      pendingToolUseAssistant = pushed;
+    } else {
+      result.push({ role: 'user', content: msg.content });
+    }
+  }
+
+  return result;
 }
 
 /**
