@@ -60,6 +60,13 @@ export interface AgentChat {
   retry: () => void;
   /** Clear the conversation and start a fresh session. */
   reset: () => void;
+  /**
+   * Abort any in-flight stream and replace the transcript wholesale,
+   * clearing `error`/`thinking`/`streaming` (mirrors {@link reset}, but
+   * loads the given messages instead of an empty list). Used when switching
+   * to a previously saved conversation.
+   */
+  loadThread: (messages: ChatMessage[]) => void;
 }
 
 /** Endpoint — proxied by Vite to `apps/api`. */
@@ -96,6 +103,14 @@ export function useAgentChat(): AgentChat {
   const reset = useCallback(() => {
     abortRef.current?.abort();
     setMessages([]);
+    setStreaming(false);
+    setThinking(false);
+    setError(null);
+  }, []);
+
+  const loadThread = useCallback((messages: ChatMessage[]) => {
+    abortRef.current?.abort();
+    setMessages(messages);
     setStreaming(false);
     setThinking(false);
     setError(null);
@@ -189,7 +204,7 @@ export function useAgentChat(): AgentChat {
       });
   }, []);
 
-  return { messages, streaming, thinking, error, send, stop, retry, reset };
+  return { messages, streaming, thinking, error, send, stop, retry, reset, loadThread };
 }
 
 /** Serialisable turn for the history payload. */

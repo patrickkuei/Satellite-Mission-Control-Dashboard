@@ -68,6 +68,24 @@
   color: #000;
 }
 
+.historyToggle {
+  background: transparent;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.historyToggle:hover {
+  color: var(--color-text-primary);
+}
+
+.historyToggle.active {
+  color: var(--color-accent);
+}
+
 .newSession {
   background: transparent;
   border: none;

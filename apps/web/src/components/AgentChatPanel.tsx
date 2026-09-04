@@ -22,8 +22,10 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useAgentChat, type ChatMessage } from '../hooks/useAgentChat';
+import { useChatSession } from '../hooks/useChatSession';
+import type { ChatMessage } from '../hooks/useAgentChat';
 import { useSystemStatus } from '../stores/systemStatus';
+import { ChatHistoryList } from './ChatHistoryList';
 import styles from './AgentChatPanel.module.css';
 
 /** Width bounds for the resizable panel (px). */
@@ -68,10 +70,24 @@ export interface AgentChatPanelProps {
 }
 
 export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Element | null {
-  const { messages, streaming, thinking, error, send, stop, retry, reset } = useAgentChat();
+  const {
+    messages,
+    streaming,
+    thinking,
+    error,
+    send,
+    stop,
+    retry,
+    threads,
+    activeThreadId,
+    newThread,
+    selectThread,
+    deleteThread,
+  } = useChatSession();
   const { serverDown } = useSystemStatus();
   const [input, setInput] = useState('');
   const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const dragStartX = useRef<number | null>(null);
@@ -102,10 +118,14 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
     [width],
   );
 
-  // Pin to bottom on every new chunk; users scroll up to break out.
+  // Pin to bottom on every new chunk; users scroll up to break out. Skipped
+  // while history is open — the .scroll container renders ChatHistoryList
+  // then, not the transcript, and a background stream could still be
+  // updating `messages` behind it.
   useEffect(() => {
+    if (historyOpen) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, streaming]);
+  }, [messages, streaming, historyOpen]);
 
   // Focus the input when the panel opens.
   useEffect(() => {
@@ -140,8 +160,21 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
         <div className={styles.headerActions}>
           <button
             type="button"
+            className={`${styles.historyToggle} ${historyOpen ? styles.active : ''}`}
+            onClick={() => setHistoryOpen((o) => !o)}
+            aria-label="Conversation history"
+            aria-pressed={historyOpen}
+            title="Conversation history"
+          >
+            ☰
+          </button>
+          <button
+            type="button"
             className={styles.newSession}
-            onClick={reset}
+            onClick={() => {
+              newThread();
+              setHistoryOpen(false);
+            }}
             disabled={streaming}
             aria-label="New session"
             title="New session"
@@ -155,7 +188,17 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
       </header>
 
       <div className={styles.scroll} ref={scrollRef}>
-        {messages.length === 0 ? (
+        {historyOpen ? (
+          <ChatHistoryList
+            threads={threads}
+            activeThreadId={activeThreadId}
+            onSelect={(id) => {
+              selectThread(id);
+              setHistoryOpen(false);
+            }}
+            onDelete={deleteThread}
+          />
+        ) : messages.length === 0 ? (
           <div className={styles.empty}>
             <p className={styles.emptyTitle}>Ask the mission-control agent.</p>
             <ul className={styles.suggestions}>
@@ -178,48 +221,52 @@ export function AgentChatPanel({ open, onClose }: AgentChatPanelProps): JSX.Elem
             />
           ))
         )}
-        {thinking && <div className={styles.thinking}>thinking…</div>}
-        {error && <div className={styles.error}>{error}</div>}
+        {!historyOpen && thinking && <div className={styles.thinking}>thinking…</div>}
+        {!historyOpen && error && <div className={styles.error}>{error}</div>}
       </div>
 
-      {serverDown && <div className={styles.agentOffline}>AGENT OFFLINE — uplink required</div>}
-      <form className={styles.form} onSubmit={onSubmit}>
-        <textarea
-          ref={inputRef}
-          className={styles.input}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={
-            serverDown
-              ? 'Unavailable while server starts…'
-              : streaming
-                ? 'streaming…'
-                : 'Ask about satellites, weather, anomalies…'
-          }
-          disabled={streaming || serverDown}
-          rows={2}
-        />
-        {streaming ? (
-          <button
-            type="button"
-            className={styles.stopBtn}
-            onClick={stop}
-            aria-label="Stop generation"
-          >
-            ■
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className={styles.send}
-            disabled={!input.trim() || serverDown}
-            aria-label="Send"
-          >
-            ↵
-          </button>
-        )}
-      </form>
+      {!historyOpen && serverDown && (
+        <div className={styles.agentOffline}>AGENT OFFLINE — uplink required</div>
+      )}
+      {!historyOpen && (
+        <form className={styles.form} onSubmit={onSubmit}>
+          <textarea
+            ref={inputRef}
+            className={styles.input}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={
+              serverDown
+                ? 'Unavailable while server starts…'
+                : streaming
+                  ? 'streaming…'
+                  : 'Ask about satellites, weather, anomalies…'
+            }
+            disabled={streaming || serverDown}
+            rows={2}
+          />
+          {streaming ? (
+            <button
+              type="button"
+              className={styles.stopBtn}
+              onClick={stop}
+              aria-label="Stop generation"
+            >
+              ■
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className={styles.send}
+              disabled={!input.trim() || serverDown}
+              aria-label="Send"
+            >
+              ↵
+            </button>
+          )}
+        </form>
+      )}
     </aside>
   );
 }

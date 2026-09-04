@@ -1,0 +1,81 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.list li {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: 2px;
+  padding: var(--space-sm) var(--space-md);
+  padding-right: var(--space-2xl);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.row:hover {
+  border-color: var(--color-accent);
+}
+
+.row.active {
+  border-color: var(--color-accent);
+  background: rgba(255, 107, 53, 0.08);
+}
+
+.title {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+}
+
+.delete {
+  position: absolute;
+  right: var(--space-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.delete:hover {
+  color: var(--color-danger);
+}
+
+.empty {
+  margin-top: var(--space-xl);
+  color: var(--color-text-tertiary);
+}
+
+.emptyTitle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin: 0;
+}
