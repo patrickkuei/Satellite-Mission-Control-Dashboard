@@ -131,22 +131,71 @@ function* processGroqChunk(
 /**
  * Convert normalised messages into Groq/OpenAI `ChatCompletionMessageParam[]`.
  * The system prompt is prepended as a `system` role message.
+ *
+ * `NormalizedMessage` only carries the *result* side of a tool call
+ * (`toolCallId`/`toolName` on the `role: 'tool'` message) — the orchestrator
+ * never records a structured `tool_calls` array on the preceding assistant
+ * message, since Gemini's and Anthropic's adapters don't need one. Groq's
+ * `openai/gpt-oss-120b` does: its "harmony" prompt template requires every
+ * tool-result message to trace back to a *named* `tool_calls` entry on the
+ * assistant message immediately before it, or it fails with
+ * `Tools should have a name!`. This reconstructs that pairing here — the
+ * one place that needs it — rather than widening the shared
+ * `NormalizedMessage` shape for every provider.
+ *
+ * The original call arguments aren't available at this layer (only the
+ * result is threaded through history), so reconstructed `tool_calls` use a
+ * placeholder `arguments: '{}'` — harmony only requires a name to resolve
+ * the pairing, not the original arguments. One known fidelity gap: if the
+ * model calls tools across two consecutive hops with no assistant text in
+ * between either hop (both `assistantText` empty), those two hops' tool
+ * calls get merged onto one synthetic assistant message rather than two —
+ * harmless for rendering (every result still has a valid named call), just
+ * not a perfect turn-by-turn reconstruction.
+ *
+ * @internal exported for testing.
  */
-function toGroqMessages(
+export function toGroqMessages(
   system: string,
   messages: NormalizedMessage[],
 ): Groq.Chat.ChatCompletionMessageParam[] {
   const result: Groq.Chat.ChatCompletionMessageParam[] = [{ role: 'system', content: system }];
+  // The assistant message currently accumulating tool_calls for the
+  // in-progress run of tool results. Reset whenever a genuinely new
+  // assistant/user message appears; reused across consecutive tool
+  // messages from the same hop.
+  let pendingToolCallAssistant: Groq.Chat.ChatCompletionAssistantMessageParam | null = null;
 
   for (const msg of messages) {
     if (msg.role === 'tool') {
-      result.push({
-        role: 'tool',
-        tool_call_id: msg.toolCallId ?? '',
+      const toolCall: Groq.Chat.ChatCompletionMessageToolCall = {
+        id: msg.toolCallId ?? '',
+        type: 'function',
+        function: { name: msg.toolName ?? 'unknown_tool', arguments: '{}' },
+      };
+      if (pendingToolCallAssistant) {
+        pendingToolCallAssistant.tool_calls = [
+          ...(pendingToolCallAssistant.tool_calls ?? []),
+          toolCall,
+        ];
+      } else {
+        pendingToolCallAssistant = { role: 'assistant', tool_calls: [toolCall] };
+        result.push(pendingToolCallAssistant);
+      }
+      result.push({ role: 'tool', tool_call_id: msg.toolCallId ?? '', content: msg.content });
+      continue;
+    }
+
+    pendingToolCallAssistant = null;
+    if (msg.role === 'assistant') {
+      const pushed: Groq.Chat.ChatCompletionAssistantMessageParam = {
+        role: 'assistant',
         content: msg.content,
-      });
-    } else if (msg.role === 'assistant') {
-      result.push({ role: 'assistant', content: msg.content });
+      };
+      result.push(pushed);
+      // Anticipate this hop's tool results (if any) attaching to this same
+      // message, matching how the orchestrator interleaves them.
+      pendingToolCallAssistant = pushed;
     } else {
       result.push({ role: 'user', content: msg.content });
     }
