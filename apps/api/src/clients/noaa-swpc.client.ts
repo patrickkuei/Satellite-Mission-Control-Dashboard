@@ -15,11 +15,19 @@ import type { SolarWind, SpaceWeather, WeatherSummary, XRayFlux } from '@orbit-c
 
 /** Planetary K-index (Kp) — short-term forecast, latest row is "now-ish". */
 const KP_INDEX_URL = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json';
-/** Real-time solar-wind plasma at L1 (DSCOVR / ACE). */
-const SOLAR_WIND_PLASMA_URL =
-  'https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json';
-/** Real-time solar-wind interplanetary magnetic field at L1. */
-const SOLAR_WIND_MAG_URL = 'https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json';
+/**
+ * Real-time solar-wind plasma at L1, 1-minute cadence.
+ *
+ * NOAA retired the old `products/solar-wind/plasma-1-day.json` tabular
+ * product (404s as of 2026-09) in favor of this `json/rtsw/` object-array
+ * product — see {@link fetchSolarWind} for the shape.
+ */
+const SOLAR_WIND_PLASMA_URL = 'https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json';
+/**
+ * Real-time solar-wind interplanetary magnetic field at L1, 1-minute cadence.
+ * Same migration as {@link SOLAR_WIND_PLASMA_URL} — old `mag-1-day.json` 404s.
+ */
+const SOLAR_WIND_MAG_URL = 'https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json';
 /** GOES X-ray flux, 6-hour rolling window. */
 const XRAY_FLUX_URL = 'https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json';
 
@@ -122,29 +130,49 @@ function inKpRange(n: number): boolean {
   return Number.isFinite(n) && n >= 0 && n <= 9;
 }
 
+/** One record from `rtsw_wind_1m.json` — only the fields we consume. */
+interface RtswWindRecord {
+  active: boolean;
+  proton_speed: number | null;
+  proton_density: number | null;
+}
+
+/** One record from `rtsw_mag_1m.json` — only the fields we consume. */
+interface RtswMagRecord {
+  active: boolean;
+  bz_gsm: number | null;
+}
+
 /**
  * Latest solar-wind sample. Plasma and magnetic-field products are separate;
  * we fetch both and combine.
  *
- * Plasma rows: `["time_tag","density","speed","temperature"]`.
- * Magnetic rows: `["time_tag","bx_gsm","by_gsm","bz_gsm","lon_gsm","lat_gsm","bt"]`.
+ * Both are object arrays, newest-first, with one record per timestamp *per
+ * spacecraft* (multiple in-situ monitors — e.g. SOLAR1, ACE, IMAP — report in
+ * parallel). NOAA flags the record it currently trusts with `active: true`;
+ * we take the newest active+parseable record, falling back to the newest
+ * parseable record of any source if NOAA ever ships a tick with no active
+ * flag set.
  */
 async function fetchSolarWind(): Promise<SolarWind> {
-  const [plasma, mag] = await Promise.all([
-    fetchJson(SOLAR_WIND_PLASMA_URL) as Promise<unknown[][]>,
-    fetchJson(SOLAR_WIND_MAG_URL) as Promise<unknown[][]>,
+  const [wind, mag] = await Promise.all([
+    fetchJson(SOLAR_WIND_PLASMA_URL) as Promise<RtswWindRecord[]>,
+    fetchJson(SOLAR_WIND_MAG_URL) as Promise<RtswMagRecord[]>,
   ]);
 
-  const plasmaRow = lastValidRow(plasma, (row) => Number.isFinite(Number(row[2])));
-  const magRow = lastValidRow(mag, (row) => Number.isFinite(Number(row[3])));
-  if (!plasmaRow || !magRow) {
+  const windRow = firstMatchingRecord(
+    wind,
+    (r) => Number.isFinite(r.proton_speed) && Number.isFinite(r.proton_density),
+  );
+  const magRow = firstMatchingRecord(mag, (r) => Number.isFinite(r.bz_gsm));
+  if (!windRow || !magRow) {
     throw new Error('NOAA solar-wind products returned no parseable rows');
   }
 
   return {
-    densityProtonsCm3: Math.max(0, Number(plasmaRow[1])),
-    speedKmS: Math.max(0, Number(plasmaRow[2])),
-    bzNanoTesla: Number(magRow[3]),
+    densityProtonsCm3: Math.max(0, windRow.proton_density as number),
+    speedKmS: Math.max(0, windRow.proton_speed as number),
+    bzNanoTesla: magRow.bz_gsm as number,
   };
 }
 
@@ -198,16 +226,19 @@ function round(n: number): number {
 }
 
 /**
- * Walk a tabular JSON product from the bottom and return the most recent row
- * matching `predicate`. Skips the header row at index 0.
+ * Find the newest record in a `json/rtsw/` product (already newest-first)
+ * that is both `active` and satisfies `isValid`. Falls back to the newest
+ * record satisfying `isValid` regardless of `active` if none is flagged
+ * active — defensive against NOAA shipping a tick with no active source.
  */
-function lastValidRow(rows: unknown[][], predicate: (row: unknown[]) => boolean): unknown[] | null {
+function firstMatchingRecord<T extends { active: boolean }>(
+  rows: T[],
+  isValid: (row: T) => boolean,
+): T | null {
   if (!Array.isArray(rows)) return null;
-  for (let i = rows.length - 1; i >= 1; i--) {
-    const row = rows[i];
-    if (Array.isArray(row) && predicate(row)) return row;
-  }
-  return null;
+  const active = rows.find((r) => r.active && isValid(r));
+  if (active) return active;
+  return rows.find(isValid) ?? null;
 }
 
 /** Thin `fetch` wrapper that throws on non-2xx with a useful message. */
