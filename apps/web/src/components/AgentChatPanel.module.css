@@ -149,7 +149,77 @@
   font-size: 13px;
   line-height: 1.5;
   color: var(--color-text-primary);
-  white-space: pre-wrap;
+}
+
+.message.assistant .body > :first-child {
+  margin-top: 0;
+}
+
+.message.assistant .body > :last-child {
+  margin-bottom: 0;
+}
+
+.message.assistant .body p,
+.message.assistant .body ul,
+.message.assistant .body ol,
+.message.assistant .body blockquote,
+.message.assistant .body table {
+  margin: var(--space-sm) 0;
+}
+
+.message.assistant .body ul,
+.message.assistant .body ol {
+  padding-left: var(--space-lg);
+}
+
+.message.assistant .body li + li {
+  margin-top: var(--space-2xs);
+}
+
+.message.assistant .body a {
+  color: var(--color-accent);
+}
+
+.message.assistant .body code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+}
+
+.message.assistant .body pre {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-tertiary);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+
+.message.assistant .body pre code {
+  border: none;
+  padding: 0;
+  background: none;
+}
+
+.message.assistant .body blockquote {
+  border-left: 2px solid var(--color-border-tertiary);
+  padding-left: var(--space-sm);
+  color: var(--color-text-secondary);
+}
+
+.message.assistant .body table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.message.assistant .body th,
+.message.assistant .body td {
+  border: 1px solid var(--color-border-tertiary);
+  padding: var(--space-2xs) var(--space-sm);
+  text-align: left;
 }
 
 .toolChips {

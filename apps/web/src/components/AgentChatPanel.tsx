@@ -9,10 +9,24 @@
  * whether it's visible. Inline `useEffect`s here are limited to DOM
  * concerns (autoscroll, focus) — anything stateful belongs in the hook.
  */
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type AnchorHTMLAttributes,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useAgentChat, type ChatMessage } from '../hooks/useAgentChat';
 import { useSystemStatus } from '../stores/systemStatus';
 import styles from './AgentChatPanel.module.css';
+
+/** Renders markdown links as new-tab external links — assistant text may cite NOAA/Celestrak sources. */
+function MarkdownLink(props: AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element {
+  return <a {...props} target="_blank" rel="noopener noreferrer" />;
+}
 
 /**
  * Human-readable labels for tool names shown in the chip strip.
@@ -196,7 +210,16 @@ function MessageRow({ message, showRetry, onRetry }: MessageRowProps): JSX.Eleme
           })}
         </div>
       )}
-      {message.content && <div className={styles.body}>{message.content}</div>}
+      {message.content &&
+        (message.role === 'assistant' ? (
+          <div className={styles.body}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: MarkdownLink }}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        ) : (
+          <div className={styles.body}>{message.content}</div>
+        ))}
       {showRetry && (
         <button type="button" className={styles.retryBtn} onClick={onRetry} aria-label="Retry">
           ↺ Retry
