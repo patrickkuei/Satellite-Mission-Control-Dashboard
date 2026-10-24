@@ -4,6 +4,9 @@
  * Owns the WebSocket lifecycle: opens on mount, parses inbound frames against
  * `WSMessageSchema` (we don't trust the wire just because TS is happy), and
  * reconnects with exponential backoff after unintentional disconnects.
+ * The socket is closed while the tab is hidden or idle (see {@link usePageActive})
+ * and reopened once someone is looking again. Every open socket costs hosted
+ * outbound bandwidth, so a forgotten tab should cost nothing.
  *
  * Exposes three derived state slices:
  *   - `latestById`  — latest sample per NORAD ID (constant-time lookup for cards).
@@ -13,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { WSMessageSchema, type Anomaly, type Telemetry, type WSMessage } from '@orbit-ctrl/types';
 import { wsBase } from '../api/config';
+import { usePageActive } from './usePageActive';
 
 /** Samples retained per satellite for sparkline rendering (~1 minute at 1 Hz). */
 const HISTORY_LEN = 60;
@@ -23,9 +27,10 @@ const RECONNECT_BACKOFF_MS = [500, 1000, 2000, 4000, 8000];
 
 /**
  * Connection state surfaced to the UI. `connecting` covers both the initial
- * dial and any retry; `closed` is a terminal-ish state after backoff exhaust.
+ * dial and any retry; `closed` is a terminal-ish state after backoff exhaust;
+ * `paused` means we closed the socket on purpose because the tab is hidden or idle.
  */
-export type ConnectionState = 'connecting' | 'open' | 'closed';
+export type ConnectionState = 'connecting' | 'open' | 'closed' | 'paused';
 
 /** Public shape returned by {@link useTelemetryStream}. */
 export interface TelemetryStream {
@@ -53,6 +58,7 @@ export function useTelemetryStream(): TelemetryStream {
   const [historyById, setHistoryById] = useState<Map<number, Telemetry[]>>(() => new Map());
   const [alerts, setAlerts] = useState<Anomaly[]>([]);
   const [state, setState] = useState<ConnectionState>('connecting');
+  const active = usePageActive();
 
   // Refs survive React strict-mode double-invoke; the actual socket isn't
   // touched by render output so it shouldn't trigger re-renders either.
@@ -75,6 +81,13 @@ export function useTelemetryStream(): TelemetryStream {
     // reconnect — leaving two parallel feeds and duplicate alert frames.
     // Per-activation closure makes the intent immutable for that lifetime.
     let abandoned = false;
+
+    if (!active) {
+      setState('paused');
+      return;
+    }
+    // Resuming is a fresh start, not a retry, so give it the full backoff budget.
+    attemptRef.current = 0;
 
     function applyTelemetry(samples: Telemetry[]): void {
       // Accumulate into pending refs on every frame (no render cost).
@@ -164,7 +177,7 @@ export function useTelemetryStream(): TelemetryStream {
       wsRef.current = null;
       ws?.close();
     };
-  }, []);
+  }, [active]);
 
   return { latestById, historyById, alerts, state };
 }

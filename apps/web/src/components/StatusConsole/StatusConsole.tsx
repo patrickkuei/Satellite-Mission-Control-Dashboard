@@ -13,10 +13,18 @@ import styles from './StatusConsole.module.css';
 
 /** Props from App — WebSocket state forwarded directly to avoid store coupling. */
 export interface StatusConsoleProps {
-  wsState: 'connecting' | 'open' | 'closed';
+  wsState: 'connecting' | 'open' | 'closed' | 'paused';
 }
 
 type LineStatus = 'offline' | 'nominal';
+
+/** Console text for each telemetry connection state. */
+const TELEMETRY_DETAIL: Record<StatusConsoleProps['wsState'], string> = {
+  open: 'CONNECTED',
+  connecting: 'RECONNECTING…',
+  closed: 'OFFLINE',
+  paused: 'PAUSED (IDLE)',
+};
 
 interface StatusLine {
   label: string;
@@ -59,9 +67,9 @@ export function StatusConsole({ wsState }: StatusConsoleProps): JSX.Element | nu
     },
     {
       label: 'TELEMETRY',
-      status: wsState !== 'open' ? 'offline' : 'nominal',
-      detail:
-        wsState === 'open' ? 'CONNECTED' : wsState === 'connecting' ? 'RECONNECTING…' : 'OFFLINE',
+      // A deliberate idle pause isn't a fault, so it doesn't mark the console degraded.
+      status: wsState === 'open' || wsState === 'paused' ? 'nominal' : 'offline',
+      detail: TELEMETRY_DETAIL[wsState],
     },
   ];
 

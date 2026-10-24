@@ -24,7 +24,7 @@ import { useSatellitePositions } from './hooks/useSatellitePositions';
 import { useGroundTrack } from './hooks/useGroundTrack';
 import { useSpaceWeather } from './hooks/useSpaceWeather';
 import { usePasses } from './hooks/usePasses';
-import { useTelemetryStream } from './hooks/useTelemetryStream';
+import { useTelemetryStream, type ConnectionState } from './hooks/useTelemetryStream';
 import { useUtcClock } from './hooks/useUtcClock';
 import { useSelectedSatellite } from './stores/selectedSatellite';
 import { useObserverLocation } from './stores/observerLocation';
@@ -34,6 +34,14 @@ import styles from './App.module.css';
 
 // Lazy-load the Globe so Three.js (~1 MB) doesn't block the initial paint.
 const Globe = lazy(() => import('./components/Globe').then((m) => ({ default: m.Globe })));
+
+/** Banner text shown under the header while the telemetry socket isn't open. */
+const TELEMETRY_BANNER: Record<ConnectionState, string> = {
+  open: '',
+  connecting: 'reconnecting telemetry…',
+  closed: 'telemetry offline',
+  paused: 'telemetry paused while idle — move the mouse to resume',
+};
 
 export function App(): JSX.Element {
   const { data: health, error: healthError } = useApiHealth();
@@ -127,9 +135,7 @@ export function App(): JSX.Element {
         </span>
       </header>
       {wsState !== 'open' && !serverDown && (
-        <div className={styles.reconnectBanner}>
-          {wsState === 'connecting' ? 'reconnecting telemetry…' : 'telemetry offline'}
-        </div>
+        <div className={styles.reconnectBanner}>{TELEMETRY_BANNER[wsState]}</div>
       )}
       <section className={styles.stage}>
         <div className={styles.globeWrapper}>

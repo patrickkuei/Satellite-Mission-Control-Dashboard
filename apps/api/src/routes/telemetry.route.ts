@@ -1,7 +1,7 @@
 /**
  * Telemetry WebSocket route — `/ws/telemetry`.
  *
- * Emits 1 Hz `{type:'telemetry'}` frames carrying one sample per tracked
+ * Emits 1 Hz `{type:'telemetry'}` frames carrying one rounded sample per tracked
  * satellite and `{type:'alert'}` frames whenever the anomaly engine surfaces
  * a new detection. Both envelopes match `WSMessageSchema` from
  * `@orbit-ctrl/types`, so the client parses with the same schema it uses
@@ -62,7 +62,7 @@ export const telemetryRoute: FastifyPluginAsync<TelemetryRouteOptions> = async (
       { schema: { response: { 200: z.array(TelemetrySchema) } } },
       async (_req, reply) => {
         reply.type('application/json');
-        return opts.telemetry.sample();
+        return (await opts.telemetry.sample()).map(toWireSample);
       },
     );
 
@@ -77,8 +77,9 @@ export const telemetryRoute: FastifyPluginAsync<TelemetryRouteOptions> = async (
       fastify.log.warn(`telemetry sample failed: ${(err as Error).message}`);
       return;
     }
-    broadcast(clients, { type: 'telemetry', data: samples });
+    broadcast(clients, { type: 'telemetry', data: samples.map(toWireSample) });
 
+    // The anomaly engine sees full-precision samples; only the wire copy is rounded.
     const newAlerts: Anomaly[] = [];
     for (const sample of samples) newAlerts.push(...opts.anomaly.evaluate(sample));
     for (const alert of newAlerts) {
@@ -119,6 +120,41 @@ export const telemetryRoute: FastifyPluginAsync<TelemetryRouteOptions> = async (
     clients.clear();
   });
 };
+
+/**
+ * Round a sample's measurements to the precision the UI can actually show, so
+ * each frame stops carrying 16-digit floats like `26.699844199427833`.
+ *
+ * Voltage and temperature keep 2 decimals (0.01 V / 0.01 °C). Attitude keeps
+ * 3, because the random walk sits around ±0.1° and 2 decimals would flatten
+ * the attitude sparklines into steps.
+ *
+ * @param sample - full-precision sample from the simulator
+ * @returns a copy with rounded numeric fields; `satelliteId` and `timestamp` unchanged
+ *
+ * @example
+ * ```ts
+ * toWireSample({ ...s, voltage: 26.699844199427833 }).voltage; // 26.7
+ * ```
+ */
+export function toWireSample(sample: Telemetry): Telemetry {
+  return {
+    ...sample,
+    voltage: roundTo(sample.voltage, 2),
+    temperature: roundTo(sample.temperature, 2),
+    attitude: {
+      pitch: roundTo(sample.attitude.pitch, 3),
+      roll: roundTo(sample.attitude.roll, 3),
+      yaw: roundTo(sample.attitude.yaw, 3),
+    },
+  };
+}
+
+/** Round `value` to `digits` decimal places. */
+function roundTo(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
 
 /** Send `msg` to every client, dropping ones that error out mid-send. */
 function broadcast(clients: Set<BroadcastSocket>, msg: WSMessage): void {

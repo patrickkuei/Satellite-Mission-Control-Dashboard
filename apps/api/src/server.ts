@@ -89,7 +89,11 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // ── Plugins ──────────────────────────────────────────────────────────────
   await server.register(cors, { origin: '*', methods: ['GET', 'POST', 'OPTIONS'] });
-  await server.register(websocket);
+  // permessage-deflate: telemetry frames repeat the same JSON keys for every
+  // satellite, so compression cuts each ~5 KB frame by roughly 80%. That's the
+  // main outbound-bandwidth cost on the hosted demo. Frames under the `ws`
+  // default 1 KB threshold (alerts) are sent uncompressed.
+  await server.register(websocket, { options: { perMessageDeflate: true } });
 
   // ── Dependency graph ─────────────────────────────────────────────────────
   const healthRepository = createHealthRepository();
